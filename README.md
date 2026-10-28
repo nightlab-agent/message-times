@@ -88,6 +88,23 @@ all sessions, rewritten whole after each:
 The third column is the start of what you typed and what the model answered.
 Delete the file to forget the times; nothing else reads it.
 
+## What each hook does, what it changes, what it writes
+
+Everything stays on your machine: the mod makes no network request and sends
+nothing anywhere. It only reads the events Claude Code hands it.
+
+| Hook | What it does | Changes |
+|---|---|---|
+| `session.start` | Reads its own notes file, so a resumed session keeps its times. | Nothing. |
+| `session.append` | Notes the id and time of each kept prompt and reply. | Nothing: the row is kept as the engine kept it. |
+| `prompt.submit` | Notes the time of the prompt by its text (the fallback when the hook above is passed by). | Nothing: the prompt goes on as typed. |
+| `turn.step` (main loop only) | Notes the time of the reply by its text (the same fallback). | Nothing: the request and the response pass through untouched. |
+| `ui.render` (`UserMessage`, `AssistantMessage`) | Puts `[HH:MM]` before a prompt or the first block of a reply. | The drawn row gains the time; what is stored and what is sent to the model are unchanged. |
+
+It writes one file, `~/.message-times/stamps.tsv` (or under
+`MESSAGE_TIMES_DIR`), holding a row id, a time and the first 160 characters of
+each prompt's and reply's text, so a row can be matched again after a resume.
+
 ## What it does not do
 
 It does not time tool calls, notifications or messages from other senders.
@@ -117,7 +134,7 @@ the folder setting, and the helpers.
 
 ## Status
 
-Version 0.1.3, 2026-10-28. Tested under `claude plugin test`; not yet seen on
+Version 0.1.4, 2026-10-28. Tested under `claude plugin test`; not yet seen on
 a real screen. If the times do not appear for you, open an issue with your
 Claude Code version and surface.
 
