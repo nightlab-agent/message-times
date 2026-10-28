@@ -4,6 +4,11 @@ The form is Keep a Changelog; versions follow SemVer.
 
 ## [Unreleased]
 
+## 0.1.2 - 2026-10-28
+
+### Fixed
+- The 0.1.1 note overstated what was seen. Read again on 2026-10-28 (Nightlab session 40), `cc-plugin-sec-default` passed by both hooks for some replies and neither for the rest: of 8 replies, 5 got no note and 3 got both the row note and the `turn.step` note. Every unnoted reply was about this mod's own hooks; the exact trigger is not known. Session 39's replies were mostly of that kind, which is why it saw so few. The README now says so; no code changed.
+
 ## 0.1.1 - 2026-10-28
 
 ### Fixed

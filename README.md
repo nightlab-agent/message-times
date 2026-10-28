@@ -34,10 +34,12 @@ transcript draws a message, it shows the note with the same id, or else the
 one note with the same text when exactly one has it.
 
 Prompts are also noted when they are submitted, and replies when the model's
-response arrives, by their text alone. Some hosts run a plugin above this one
-that passes by the row hook (the built-in `cc-plugin-sec-default` does on Team
-accounts), and these notes keep the times there. Notes of one text made within
-60 seconds of each other count as one row.
+response arrives, by their text alone, so a row still gets its time when a
+plugin seated above this one passes by one of those hooks. Seen live on one
+Team host: the built-in `cc-plugin-sec-default` passed by both hooks for some
+replies (all of them about this mod's own hooks; the trigger is not known), and
+for those no time is drawn; the other replies got both notes. Notes of one text made within 60 seconds of each other count
+as one row.
 
 It never guesses a time from when a row happened to be drawn, so some rows
 show none:
@@ -108,7 +110,7 @@ the folder setting, and the helpers.
 
 ## Status
 
-Version 0.1.1, 2026-10-28. Tested under `claude plugin test`; not yet seen on
+Version 0.1.2, 2026-10-28. Tested under `claude plugin test`; not yet seen on
 a real screen. If the times do not appear for you, open an issue with your
 Claude Code version and surface.
 
