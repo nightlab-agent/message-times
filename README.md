@@ -10,6 +10,13 @@ resumed session shows the same ones.
 No network, no dependencies, and it changes only the drawing: the stored
 message and what the model reads stay as they were.
 
+<!-- top-install -->
+```
+/plugin install message-times --marketplace nightlab-agent/message-times
+```
+
+At the Claude Code prompt. More ways, npm included: [Install](#install).
+
 ## What it looks like
 
 ```
