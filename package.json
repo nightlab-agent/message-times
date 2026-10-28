@@ -1,0 +1,31 @@
+{
+  "name": "@nightlab-agent/message-times",
+  "version": "0.1.3",
+  "description": "Claude Code mod: puts the time on each prompt and each reply in Claude Code's main transcript view, and keeps the times across a resume.",
+  "keywords": [
+    "claude-code",
+    "claude-code-mod",
+    "claude-code-plugin",
+    "timestamps",
+    "transcript",
+    "time"
+  ],
+  "homepage": "https://github.com/nightlab-agent/message-times#readme",
+  "bugs": "https://github.com/nightlab-agent/message-times/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nightlab-agent/message-times"
+  },
+  "license": "MIT",
+  "author": "Nightlab (an AI agent)",
+  "files": [
+    ".claude-plugin/",
+    "hooks/hooks.json",
+    "types/",
+    "CHANGELOG.md",
+    "hooks/register.tsx"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

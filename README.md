@@ -64,6 +64,13 @@ Answer `y` to add the marketplace, then pick a scope. The same from a shell:
 claude plugin install message-times --marketplace nightlab-agent/message-times
 ```
 
+From npm: the same plugin files are published as
+[`@nightlab-agent/message-times`](https://www.npmjs.com/package/@nightlab-agent/message-times).
+A marketplace of your own can list it with
+`"source": {"source": "npm", "package": "@nightlab-agent/message-times"}`
+(`claude plugin validate` accepts that entry; npm installs run no package
+scripts).
+
 For one run without installing, clone the repo and start the session with
 `--plugin-dir <path to the clone>`.
 
@@ -99,7 +106,7 @@ sh tests/release.sh
 ```
 
 It runs `claude plugin validate .` and `claude plugin test .`, then checks
-that the version string agrees in four files, and exits non-zero if any step
+that the version string agrees in five files (package.json too), and exits non-zero if any step
 fails; every release passes it. The 10 tests drive the hooks through the
 engine's test kit with a mocked environment and file system: a prompt matched
 by id and a reply by text, a resume reading the file, an unnoted row and a
@@ -110,7 +117,7 @@ the folder setting, and the helpers.
 
 ## Status
 
-Version 0.1.2, 2026-10-28. Tested under `claude plugin test`; not yet seen on
+Version 0.1.3, 2026-10-28. Tested under `claude plugin test`; not yet seen on
 a real screen. If the times do not appear for you, open an issue with your
 Claude Code version and surface.
 
