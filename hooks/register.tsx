@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { Engine, Register } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
 
 import type { Stamp, Stamps } from '../types'
 
@@ -81,8 +81,8 @@ export const stampFor = (all: Stamps, id: string, key: string) => {
     .sort((a, b) => a - b)
   if (times.length === 0) return ''
   // two rows with this text, further apart than one row's notes: which is which is not known
-  if (times[times.length - 1] - times[0] > SAME_ROW_MS) return ''
-  return new Date(times[0]).toISOString()
+  if (times[times.length - 1]! - times[0]! > SAME_ROW_MS) return ''
+  return new Date(times[0]!).toISOString()
 }
 
 type Block = { type: string; text?: unknown }
@@ -98,7 +98,7 @@ type Options = Parameters<Register>[1]
 const dirOf = (options: Options) => String(options.dir || '.message-times')
 
 /** Adds notes to the session's and writes the file. */
-async function note($: Engine, options: Options, notes: Stamps) {
+async function note($: EngineInterface, options: Options, notes: Stamps) {
   const all = await update($, stamps, xs => trim({ ...xs, ...notes }))
   await $.fs.write(`${dirOf(options)}/stamps.tsv`, fileText(all))
 }

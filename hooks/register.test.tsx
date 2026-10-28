@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import type { TestBody } from 'claude-code/testing'
 
 import { fileText, KEEP, keyOf, parseFile, stampFor, timeOf, trim } from './register'
 
@@ -7,8 +8,8 @@ import { fileText, KEEP, keyOf, parseFile, stampFor, timeOf, trim } from './regi
 // the session appends, and draws a message row by handing back the text the
 // plugin passed down. Nothing touches the real file system.
 
-type On = Parameters<Parameters<typeof test>[1]>[1]
-type $T = Parameters<Parameters<typeof test>[1]>[0]
+type On = Parameters<TestBody>[1]
+type $T = Parameters<TestBody>[0]
 
 const world = (on: On, opts: { file?: string; readFails?: boolean; writeFails?: boolean} = {}) => {
   const writes: { path: string; text: string }[] = []
@@ -46,10 +47,10 @@ const reply = ($: $T, uuid: string, ...texts: string[]) =>
   })
 
 const drawUser = ($: $T, requestId: string, text: string, extra: Record<string, unknown> = {}) =>
-  $.ui.render({ plugin: 'message-times', surface: 'terminal', component: 'UserMessage', requestId, props: { text, origin: { kind: 'composer' }, isExpanded: false, ...extra } as never })
+  $.ui.render({ surface: 'terminal', component: 'UserMessage', requestId, props: { text, origin: { kind: 'composer' }, isExpanded: false, ...extra } as never })
 
 const drawReply = ($: $T, requestId: string, text: string, extra: Record<string, unknown> = {}) =>
-  $.ui.render({ plugin: 'message-times', surface: 'terminal', component: 'AssistantMessage', requestId, props: { text, isFirstOfReply: true, ...extra } as never })
+  $.ui.render({ surface: 'terminal', component: 'AssistantMessage', requestId, props: { text, isFirstOfReply: true, ...extra } as never })
 
 const STAMP = /^\[\d\d:\d\d:\d\d\] /
 
@@ -96,7 +97,7 @@ test('with session.append passed by, a prompt and a reply are noted at prompt.su
   await drawReply($, 'r-2', 'All four workers are up.')
   expect(drawn[0]).toMatch(STAMP)
   expect(drawn[1]).toMatch(STAMP)
-  expect(writes[writes.length - 1].text).toContain('step:t-1:0\t')
+  expect(writes.at(-1)!.text).toContain('step:t-1:0\t')
 })
 
 test('a row noted by both doors draws one time; a subagent step, a meta prompt and a tool-only step are not noted', async ($, on) => {
