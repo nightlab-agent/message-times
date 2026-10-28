@@ -3,19 +3,17 @@ import { expect, test } from 'claude-code/testing'
 import { fileText, KEEP, keyOf, parseFile, stampFor, timeOf, trim } from './register'
 
 // Each test stands for the engine beneath the plugin: it answers
-// `session.start`, `$.env.get`, `$.fs.read` and `$.fs.write`, keeps the rows
+// `session.start`, `$.fs.read` and `$.fs.write`, keeps the rows
 // the session appends, and draws a message row by handing back the text the
 // plugin passed down. Nothing touches the real file system.
 
 type On = Parameters<Parameters<typeof test>[1]>[1]
 type $T = Parameters<Parameters<typeof test>[1]>[0]
 
-const world = (on: On, opts: { file?: string; readFails?: boolean; writeFails?: boolean; env?: Record<string, string> } = {}) => {
+const world = (on: On, opts: { file?: string; readFails?: boolean; writeFails?: boolean} = {}) => {
   const writes: { path: string; text: string }[] = []
   const drawn: string[] = []
-  const env = opts.env ?? { HOME: '/home/someone' }
   on('session.start', (_, e) => ({ cwd: e.cwd }))
-  on('env.get', (_, e) => ({ value: env[e.name] }))
   on('fs.read', () => {
     if (opts.readFails || opts.file === undefined) throw Object.assign(new Error('no such file'), { code: 'ENOENT' })
     return { value: opts.file }
@@ -84,7 +82,7 @@ test('a prompt and a reply the session kept are drawn with the time, by id or by
   expect(drawn[0]).toEndWith('] check worker status')
   expect(drawn[1]).toMatch(STAMP)
   expect(drawn[1]).toEndWith('] Both workers are active.')
-  expect(writes.at(-1)!.path).toBe('/home/someone/.message-times/stamps.tsv')
+  expect(writes.at(-1)!.path.endsWith('/.message-times/stamps.tsv')).toBe(true)
   expect(Object.keys(parseFile(writes.at(-1)!.text))).toEqual(['u-1', 'a-1'])
 })
 
@@ -167,8 +165,8 @@ test('a file that cannot be read or written costs the file alone: rows are kept 
   expect(drawn[0]).toMatch(STAMP)
 })
 
-test('MESSAGE_TIMES_DIR moves the file', async ($, on) => {
-  const { writes } = world(on, { env: { MESSAGE_TIMES_DIR: '/var/notes' } })
+test('the dir option moves the file', { options: { dir: '/var/notes' } }, async ($, on) => {
+  const { writes } = world(on)
   await start($)
   await prompt($, 'u-1', 'a')
   expect(writes[0]!.path).toBe('/var/notes/stamps.tsv')

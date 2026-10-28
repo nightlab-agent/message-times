@@ -3,14 +3,14 @@ import type { Engine, Register } from 'claude-code'
 
 import type { Stamp, Stamps } from '../types'
 
-// message-times: the time on each prompt and each reply in the main transcript
-// view (anthropics/claude-code#44763). The ctrl+o transcript view has times of
+// message-times: the time on each prompt and each reply in the main conversation
+// view (anthropics/claude-code#44763). The ctrl+o detail view has times of
 // its own; the main view, where a long-running session is watched, has none.
 //
 // How a row gets its time: when the session keeps a prompt or a reply row
 // (`session.append`), its id, the time and the start of its text are noted, in
 // the session's state and in one local file, so a resumed session has them.
-// When the transcript draws a message row it reads them and never writes (a
+// When the conversation draws a message row it reads them and never writes (a
 // render hook may not): the row whose id was noted shows that time; otherwise
 // the one noted row of that kind with the same text, when exactly one has it.
 // A row with no such note (one drawn from before the mod was installed, or one
@@ -92,28 +92,22 @@ export const textsOf = (content: unknown): string[] =>
     ? (content as Block[]).filter(b => b && b.type === 'text' && typeof b.text === 'string' && b.text.trim() !== '').map(b => b.text as string)
     : []
 
-/** Where the notes are kept: MESSAGE_TIMES_DIR, else ~/.message-times; '' with neither. */
-async function fileOf($: Engine) {
-  const home = await $.env.get('HOME')
-  const dir = (await $.env.get('MESSAGE_TIMES_DIR')) || (home ? `${home}/.message-times` : '')
-  return dir ? `${dir}/stamps.tsv` : ''
-}
+type Options = Parameters<Register>[1]
+
+/** The folder the notes are kept in: the `dir` option, else `.message-times` under the project. */
+const dirOf = (options: Options) => String(options.dir || '.message-times')
 
 /** Adds notes to the session's and writes the file. */
-async function note($: Engine, notes: Stamps) {
+async function note($: Engine, options: Options, notes: Stamps) {
   const all = await update($, stamps, xs => trim({ ...xs, ...notes }))
-  const file = await fileOf($)
-  if (file) await $.fs.write(file, fileText(all))
+  await $.fs.write(`${dirOf(options)}/stamps.tsv`, fileText(all))
 }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     try {
-      const file = await fileOf($)
-      if (file) {
-        const kept = parseFile(await $.fs.read(file))
-        await update($, stamps, xs => trim({ ...kept, ...xs }))
-      }
+      const kept = parseFile(await $.fs.read(`${dirOf(options)}/stamps.tsv`))
+      await update($, stamps, xs => trim({ ...kept, ...xs }))
     } catch {
       // no file yet, or none readable: the notes start empty
     }
@@ -133,7 +127,7 @@ export const register: Register = on => {
       const uuid = r.uuid
       // A prompt is one row; a reply's text blocks are each drawn as a row of their own.
       const keys = kind === 'user' ? [keyOf(kind, texts.join('\n'))] : texts.map(t => keyOf(kind, t))
-      await note($, Object.fromEntries(keys.map((key, i) => [i === 0 ? uuid : `${uuid}:${i}`, { at, key }])))
+      await note($, options, Object.fromEntries(keys.map((key, i) => [i === 0 ? uuid : `${uuid}:${i}`, { at, key }])))
     } catch {
       // this row goes unnoted; the row is kept as the engine kept it
     }
@@ -146,7 +140,7 @@ export const register: Register = on => {
     const r = await next(e)
     try {
       if (!e.isMeta && !e.command && 'text' in r && typeof r.text === 'string' && r.text.trim() !== '') {
-        await note($, { [`prompt:${at}`]: { at, key: keyOf('user', r.text) } })
+        await note($, options, { [`prompt:${at}`]: { at, key: keyOf('user', r.text) } })
       }
     } catch {
       // unnoted here; the prompt goes on as the engine had it
@@ -160,7 +154,7 @@ export const register: Register = on => {
     try {
       if (!e.agentId && r.answer.trim() !== '') {
         const at = new Date().toISOString()
-        await note($, { [`step:${e.turnId}:${e.index}`]: { at, key: keyOf('assistant', r.answer) } })
+        await note($, options, { [`step:${e.turnId}:${e.index}`]: { at, key: keyOf('assistant', r.answer) } })
       }
     } catch {
       // unnoted here; the response is the engine's as streamed

@@ -7,6 +7,7 @@ set -e
 cd "$(dirname "$0")/.."
 claude plugin validate .
 claude plugin test .
+python3 -I tests/checklist.py
 python3 -I - <<'PY'
 import json, re, sys
 plugin = json.load(open('.claude-plugin/plugin.json'))['version']

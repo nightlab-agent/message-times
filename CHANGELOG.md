@@ -4,6 +4,14 @@ The form is Keep a Changelog; versions follow SemVer.
 
 ## [Unreleased]
 
+## 0.2.0 - 2026-10-28 - the notes folder is an option
+
+### Changed
+- `stamps.tsv` goes to the `dir` option (default `.message-times`, under the project; set it in `/config`).
+  It was `$MESSAGE_TIMES_DIR`, else `~/.message-times`: set `dir` to the absolute path of the old folder to keep its times.
+- The module reads no environment variable and writes only under that folder. An environment read and a write path
+  built from it are what held another mod in the plugin directory's review.
+
 ## 0.1.6 - 2026-10-28 - plugin.json links the repo
 
 ### Changed

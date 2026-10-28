@@ -76,8 +76,9 @@ For one run without installing, clone the repo and start the session with
 
 ## What it writes
 
-`$MESSAGE_TIMES_DIR/stamps.tsv`, or `$HOME/.message-times/stamps.tsv` when
-`MESSAGE_TIMES_DIR` is unset. One line per noted row, the newest 5000 across
+`<dir>/stamps.tsv`, where `dir` is the mod's one option (default
+`.message-times`, under the project the session runs in; set it in `/config`,
+an absolute path keeps every project's times in one place). One line per noted row, the newest 5000 across
 all sessions, rewritten whole after each:
 
 ```
@@ -101,8 +102,8 @@ nothing anywhere. It only reads the events Claude Code hands it.
 | `turn.step` (main loop only) | Notes the time of the reply by its text (the same fallback). | Nothing: the request and the response pass through untouched. |
 | `ui.render` (`UserMessage`, `AssistantMessage`) | Puts `[HH:MM]` before a prompt or the first block of a reply. | The drawn row gains the time; what is stored and what is sent to the model are unchanged. |
 
-It writes one file, `~/.message-times/stamps.tsv` (or under
-`MESSAGE_TIMES_DIR`), holding a row id, a time and the first 160 characters of
+It writes one file, `.message-times/stamps.tsv` under the project (or under
+the `dir` option), holding a row id, a time and the first 160 characters of
 each prompt's and reply's text, so a row can be matched again after a resume.
 
 ## What it does not do
@@ -111,8 +112,7 @@ It does not time tool calls, notifications or messages from other senders.
 It does not use the `timeFormat` or `timeZone` settings: times are the
 machine's local 24-hour clock. It does not change what is stored or sent.
 
-The silent failure mode: if the file cannot be read or written, or there is
-neither `MESSAGE_TIMES_DIR` nor `HOME`, the times show for this run only and a
+The silent failure mode: if the file cannot be read or written, the times show for this run only and a
 resume has none. A failure inside the mod draws the row as the engine drew it
 and never changes a kept row.
 
@@ -134,7 +134,7 @@ the folder setting, and the helpers.
 
 ## Status
 
-Version 0.1.6, 2026-10-28: the credit line names X Infinite. Tested under `claude plugin test`; not yet seen on
+Version 0.2.0, 2026-10-28: the notes folder is the `dir` option; no environment variable is read. Tested under `claude plugin test`; not yet seen on
 a real screen. If the times do not appear for you, open an issue with your
 Claude Code version and surface.
 
