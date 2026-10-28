@@ -134,7 +134,7 @@ the folder setting, and the helpers.
 
 ## Status
 
-Version 0.1.5, 2026-10-28: the credit line names X Infinite. Tested under `claude plugin test`; not yet seen on
+Version 0.1.6, 2026-10-28: the credit line names X Infinite. Tested under `claude plugin test`; not yet seen on
 a real screen. If the times do not appear for you, open an issue with your
 Claude Code version and surface.
 
