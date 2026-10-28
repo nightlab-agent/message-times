@@ -1,0 +1,144 @@
+import { expect, test } from 'claude-code/testing'
+
+import { fileText, KEEP, keyOf, parseFile, stampFor, timeOf, trim } from './register'
+
+// Each test stands for the engine beneath the plugin: it answers
+// `session.start`, `$.env.get`, `$.fs.read` and `$.fs.write`, keeps the rows
+// the session appends, and draws a message row by handing back the text the
+// plugin passed down. Nothing touches the real file system.
+
+type On = Parameters<Parameters<typeof test>[1]>[1]
+type $T = Parameters<Parameters<typeof test>[1]>[0]
+
+const world = (on: On, opts: { file?: string; readFails?: boolean; writeFails?: boolean; env?: Record<string, string> } = {}) => {
+  const writes: { path: string; text: string }[] = []
+  const drawn: string[] = []
+  const env = opts.env ?? { HOME: '/home/someone' }
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('env.get', (_, e) => ({ value: env[e.name] }))
+  on('fs.read', () => {
+    if (opts.readFails || opts.file === undefined) throw Object.assign(new Error('no such file'), { code: 'ENOENT' })
+    return { value: opts.file }
+  })
+  on('fs.write', (_, e) => {
+    if (opts.writeFails) throw new Error('read-only file system')
+    writes.push({ path: e.path, text: e.text })
+    return { value: undefined }
+  })
+  on('ui.render', ($, e) => {
+    const text = String((e.props as { text?: unknown }).text)
+    drawn.push(text)
+    const { Text } = $.ui.resolve(e)
+    return <Text>{text}</Text>
+  })
+  return { writes, drawn }
+}
+
+const start = ($: $T) => $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+
+const prompt = ($: $T, uuid: string, text: string) =>
+  $.session.append({ message: { type: 'user', role: 'user', content: [{ type: 'text', text }] }, door: 'prompt', origin: { kind: 'composer' }, uuid })
+
+const reply = ($: $T, uuid: string, ...texts: string[]) =>
+  $.session.append({
+    message: { type: 'assistant', role: 'assistant', content: texts.map(text => ({ type: 'text' as const, text })) },
+    door: 'response',
+    origin: { kind: 'model', model: 'claude-test' },
+    uuid,
+  })
+
+const drawUser = ($: $T, requestId: string, text: string, extra: Record<string, unknown> = {}) =>
+  $.ui.render({ plugin: 'message-times', surface: 'terminal', component: 'UserMessage', requestId, props: { text, origin: { kind: 'composer' }, isExpanded: false, ...extra } as never })
+
+const drawReply = ($: $T, requestId: string, text: string, extra: Record<string, unknown> = {}) =>
+  $.ui.render({ plugin: 'message-times', surface: 'terminal', component: 'AssistantMessage', requestId, props: { text, isFirstOfReply: true, ...extra } as never })
+
+const STAMP = /^\[\d\d:\d\d:\d\d\] /
+
+test('a prompt and a reply the session kept are drawn with the time, by id or by their text', async ($, on) => {
+  const { writes, drawn } = world(on)
+  await start($)
+  await prompt($, 'u-1', 'check worker status')
+  await reply($, 'a-1', 'Both workers are active.')
+  await drawUser($, 'u-1', 'check worker status')
+  await drawReply($, 'msg_other_id', 'Both workers are active.')
+  expect(drawn[0]).toMatch(STAMP)
+  expect(drawn[0]).toEndWith('] check worker status')
+  expect(drawn[1]).toMatch(STAMP)
+  expect(drawn[1]).toEndWith('] Both workers are active.')
+  expect(writes.at(-1)!.path).toBe('/home/someone/.message-times/stamps.tsv')
+  expect(Object.keys(parseFile(writes.at(-1)!.text))).toEqual(['u-1', 'a-1'])
+})
+
+test('a resumed session reads the times from the file', async ($, on) => {
+  const file = 'u-9\t2026-10-27T13:15:32.000Z\tuser:deploy the fix\n'
+  const { drawn } = world(on, { file })
+  await start($)
+  await drawUser($, 'u-9', 'deploy the fix')
+  expect(drawn[0]).toBe(`[${timeOf('2026-10-27T13:15:32.000Z', new Date())}] deploy the fix`)
+})
+
+test('a row with no note, or one of two rows with the same text and other ids, is drawn without a time', async ($, on) => {
+  const { drawn } = world(on)
+  await start($)
+  await prompt($, 'u-1', 'check worker status')
+  await prompt($, 'u-2', 'check worker status')
+  await drawUser($, 'r-1', 'check worker status')
+  await drawUser($, 'r-0', 'something typed before the mod was installed')
+  await drawUser($, 'u-2', 'check worker status')
+  expect(drawn[0]).toBe('check worker status')
+  expect(drawn[1]).toBe('something typed before the mod was installed')
+  expect(drawn[2]).toMatch(STAMP)
+})
+
+test('the expanded view, a message from another sender, a reply block after the first and a summary are left alone', async ($, on) => {
+  const { drawn } = world(on)
+  await start($)
+  await prompt($, 'u-1', 'hello')
+  await reply($, 'a-1', 'one', 'two')
+  await drawUser($, 'u-1', 'hello', { isExpanded: true })
+  await drawUser($, 'u-1', 'hello', { origin: { kind: 'unclassified' } })
+  await drawReply($, 'a-1:1', 'two', { isFirstOfReply: false })
+  await drawReply($, 'a-1', 'one', { isSummary: true })
+  expect(drawn).toEqual(['hello', 'hello', 'two', 'one'])
+})
+
+test('meta rows, tool results and empty replies are not noted', async ($, on) => {
+  const { writes } = world(on)
+  await start($)
+  await $.session.append({ message: { type: 'user', role: 'user', isMeta: true, content: [{ type: 'text', text: 'reminder' }] }, door: 'prompt', origin: { kind: 'composer' }, uuid: 'm-1' })
+  await reply($, 'a-1')
+  expect(writes.length).toBe(0)
+})
+
+test('a file that cannot be read or written costs the file alone: rows are kept and still drawn with the time', async ($, on) => {
+  const { writes, drawn } = world(on, { readFails: true, writeFails: true })
+  await start($)
+  const r = await prompt($, 'u-1', 'still works')
+  expect(r.uuid).toBe('u-1')
+  await drawUser($, 'u-1', 'still works')
+  expect(writes.length).toBe(0)
+  expect(drawn[0]).toMatch(STAMP)
+})
+
+test('MESSAGE_TIMES_DIR moves the file', async ($, on) => {
+  const { writes } = world(on, { env: { MESSAGE_TIMES_DIR: '/var/notes' } })
+  await start($)
+  await prompt($, 'u-1', 'a')
+  expect(writes[0]!.path).toBe('/var/notes/stamps.tsv')
+})
+
+test('helpers: time on another day shows the date; the file keeps the newest KEEP; bad lines are skipped', () => {
+  const now = new Date(2026, 9, 28, 12, 0, 0)
+  expect(timeOf(new Date(2026, 9, 28, 9, 5, 7).toISOString(), now)).toBe('09:05:07')
+  expect(timeOf(new Date(2026, 9, 27, 23, 59, 0).toISOString(), now)).toBe('10-27 23:59')
+  expect(timeOf('not a time', now)).toBe('')
+  const many = Object.fromEntries(Array.from({ length: KEEP + 3 }, (_, i) => [`id-${i}`, { at: '2026-10-28T00:00:00.000Z', key: `user:${i}` }]))
+  const kept = trim(many)
+  expect(Object.keys(kept).length).toBe(KEEP)
+  expect(Object.keys(kept)[0]).toBe('id-3')
+  expect(parseFile('x\t2026-10-28T00:00:00Z\tuser:a\nbroken line\ny\tnot-a-date\tuser:b\n')).toEqual({ x: { at: '2026-10-28T00:00:00Z', key: 'user:a' } })
+  expect(parseFile(fileText({ a: { at: '2026-10-28T00:00:00Z', key: 'user:tab\there' } }))).toEqual({ a: { at: '2026-10-28T00:00:00Z', key: 'user:tab here' } })
+  expect(keyOf('user', '  check\n worker   status ')).toBe('user:check worker status')
+  expect(stampFor({}, 'x', 'user:a')).toBe('')
+})

@@ -1,0 +1,9 @@
+{
+  "name": "message-times",
+  "version": "0.1.0",
+  "description": "Puts the time on each prompt and each reply in Claude Code's main transcript view, and keeps the times across a resume.",
+  "author": { "name": "Nightlab" },
+  "license": "MIT",
+  "keywords": ["claude-code-mod", "timestamps", "transcript", "time"],
+  "types": "./types/index.d.ts"
+}
