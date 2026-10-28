@@ -55,6 +55,24 @@ const drawReply = ($: $T, requestId: string, text: string, extra: Record<string,
 
 const STAMP = /^\[\d\d:\d\d:\d\d\] /
 
+const submit = ($: $T, text: string, extra: Record<string, unknown> = {}) => $.prompt.submit({ text, ...extra } as never)
+
+const step = async ($: $T, turnId: string, index: number, extra: Record<string, unknown> = {}) => {
+  const s = $.turn.step({ turnId, index, model: 'claude-test', messageCount: 1, ...extra } as never)
+  for await (const _ of s) {
+    // the chunks are the engine's; only the result is read
+  }
+  return s.result
+}
+
+// What the engine beneath answers when asked: the prompt as typed, and a response with one text.
+const engine = (on: On, answer: string) => {
+  on('prompt.submit', (_, e) => ({ text: e.text }))
+  on('turn.step', async function* (_, e) {
+    return { turnId: e.turnId, index: e.index, answer, toolUses: [], stopReason: 'end_turn', usage: null } as never
+  })
+}
+
 test('a prompt and a reply the session kept are drawn with the time, by id or by their text', async ($, on) => {
   const { writes, drawn } = world(on)
   await start($)
@@ -70,6 +88,34 @@ test('a prompt and a reply the session kept are drawn with the time, by id or by
   expect(Object.keys(parseFile(writes.at(-1)!.text))).toEqual(['u-1', 'a-1'])
 })
 
+test('with session.append passed by, a prompt and a reply are noted at prompt.submit and turn.step and drawn with the time', async ($, on) => {
+  const { writes, drawn } = world(on)
+  engine(on, 'All four workers are up.')
+  await start($)
+  await submit($, 'check worker status')
+  await step($, 't-1', 0)
+  await drawUser($, 'r-1', 'check worker status')
+  await drawReply($, 'r-2', 'All four workers are up.')
+  expect(drawn[0]).toMatch(STAMP)
+  expect(drawn[1]).toMatch(STAMP)
+  expect(writes[writes.length - 1].text).toContain('step:t-1:0\t')
+})
+
+test('a row noted by both doors draws one time; a subagent step, a meta prompt and a tool-only step are not noted', async ($, on) => {
+  const { writes, drawn } = world(on)
+  engine(on, '')
+  await start($)
+  await submit($, 'check worker status')
+  await prompt($, 'u-1', 'check worker status')
+  await drawUser($, 'r-9', 'check worker status')
+  expect(drawn[0]).toMatch(STAMP)
+  const before = writes.length
+  await step($, 't-1', 0)
+  await step($, 't-2', 0, { agentId: 'a-1' })
+  await submit($, 'hidden', { isMeta: true })
+  expect(writes.length).toBe(before)
+})
+
 test('a resumed session reads the times from the file', async ($, on) => {
   const file = 'u-9\t2026-10-27T13:15:32.000Z\tuser:deploy the fix\n'
   const { drawn } = world(on, { file })
@@ -79,9 +125,9 @@ test('a resumed session reads the times from the file', async ($, on) => {
 })
 
 test('a row with no note, or one of two rows with the same text and other ids, is drawn without a time', async ($, on) => {
-  const { drawn } = world(on)
+  const old = new Date(Date.now() - 2 * 3600_000).toISOString()
+  const { drawn } = world(on, { file: `u-1\t${old}\t${keyOf('user', 'check worker status')}\n` })
   await start($)
-  await prompt($, 'u-1', 'check worker status')
   await prompt($, 'u-2', 'check worker status')
   await drawUser($, 'r-1', 'check worker status')
   await drawUser($, 'r-0', 'something typed before the mod was installed')

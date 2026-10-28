@@ -33,12 +33,18 @@ row's id, the time and the first 160 characters of its text. When the
 transcript draws a message, it shows the note with the same id, or else the
 one note with the same text when exactly one has it.
 
+Prompts are also noted when they are submitted, and replies when the model's
+response arrives, by their text alone. Some hosts run a plugin above this one
+that passes by the row hook (the built-in `cc-plugin-sec-default` does on Team
+accounts), and these notes keep the times there. Notes of one text made within
+60 seconds of each other count as one row.
+
 It never guesses a time from when a row happened to be drawn, so some rows
 show none:
 
 - rows from before the mod was installed;
-- a row whose text matches several notes but whose id matches none (you typed
-  `check worker status` three times), on a host where the drawn row's id is
+- a row whose text matches notes more than a minute apart but whose id
+  matches none (you typed `check worker status` three times), on a host where the drawn row's id is
   not the stored row's;
 - notifications, messages from other agents or sessions, and summaries.
 
@@ -92,16 +98,17 @@ sh tests/release.sh
 
 It runs `claude plugin validate .` and `claude plugin test .`, then checks
 that the version string agrees in four files, and exits non-zero if any step
-fails; every release passes it. The 8 tests drive the hooks through the
+fails; every release passes it. The 10 tests drive the hooks through the
 engine's test kit with a mocked environment and file system: a prompt matched
 by id and a reply by text, a resume reading the file, an unnoted row and a
-duplicated text drawn without a time, the expanded view and other senders
+duplicated text drawn without a time, notes made at
+submit and at the model's response when the row hook is passed by, the expanded view and other senders
 left alone, meta rows not noted, a failing file system costing only the file,
 the folder setting, and the helpers.
 
 ## Status
 
-Version 0.1.0, 2026-10-28. Tested under `claude plugin test`; not yet seen on
+Version 0.1.1, 2026-10-28. Tested under `claude plugin test`; not yet seen on
 a real screen. If the times do not appear for you, open an issue with your
 Claude Code version and surface.
 

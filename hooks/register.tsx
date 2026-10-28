@@ -17,12 +17,21 @@ import type { Stamp, Stamps } from '../types'
 // of several rows saying the same thing) shows no time: the mod never guesses a
 // time from when a row happened to be drawn.
 //
+// A plugin seated above this one may continue past its `session.append` hook
+// (the built-in cc-plugin-sec-default does on Team accounts: "runs first and
+// sent the event on past it"). So a prompt is noted at `prompt.submit` too and
+// a reply at `turn.step`, by text alone; notes of one text made within
+// SAME_ROW_MS of each other are one row, and the earliest is its time.
+//
 // DESIGN NOTE, deliberately narrow: it changes the drawing only, never the
 // stored message or what the model reads; no network; every failure of its own
 // is swallowed and the engine's row drawn as it was.
 
 /** Notes kept in the session and the file, newest last. */
 export const KEEP = 5000
+
+/** Notes of one text this close together are one row noted by two hooks. */
+export const SAME_ROW_MS = 60_000
 
 // Change the tag when Stamp's fields change: it declines what an earlier version stored.
 const stamps = atom({ plugin: 'message-times', key: 'stamps' } as const, {} as Stamps, { shape: 'stamps-1' })
@@ -65,13 +74,15 @@ export const parseFile = (text: string): Stamps => {
 export const stampFor = (all: Stamps, id: string, key: string) => {
   const own = all[id]
   if (own) return own.at
-  let found: Stamp | undefined
-  for (const s of Object.values(all)) {
-    if (s.key !== key) continue
-    if (found) return ''
-    found = s
-  }
-  return found ? found.at : ''
+  const times = Object.values(all)
+    .filter(s => s.key === key)
+    .map(s => new Date(s.at).getTime())
+    .filter(t => !Number.isNaN(t))
+    .sort((a, b) => a - b)
+  if (times.length === 0) return ''
+  // two rows with this text, further apart than one row's notes: which is which is not known
+  if (times[times.length - 1] - times[0] > SAME_ROW_MS) return ''
+  return new Date(times[0]).toISOString()
 }
 
 type Block = { type: string; text?: unknown }
@@ -86,6 +97,13 @@ async function fileOf($: Engine) {
   const home = await $.env.get('HOME')
   const dir = (await $.env.get('MESSAGE_TIMES_DIR')) || (home ? `${home}/.message-times` : '')
   return dir ? `${dir}/stamps.tsv` : ''
+}
+
+/** Adds notes to the session's and writes the file. */
+async function note($: Engine, notes: Stamps) {
+  const all = await update($, stamps, xs => trim({ ...xs, ...notes }))
+  const file = await fileOf($)
+  if (file) await $.fs.write(file, fileText(all))
 }
 
 export const register: Register = on => {
@@ -115,12 +133,37 @@ export const register: Register = on => {
       const uuid = r.uuid
       // A prompt is one row; a reply's text blocks are each drawn as a row of their own.
       const keys = kind === 'user' ? [keyOf(kind, texts.join('\n'))] : texts.map(t => keyOf(kind, t))
-      const notes: Stamps = Object.fromEntries(keys.map((key, i) => [i === 0 ? uuid : `${uuid}:${i}`, { at, key }]))
-      const all = await update($, stamps, xs => trim({ ...xs, ...notes }))
-      const file = await fileOf($)
-      if (file) await $.fs.write(file, fileText(all))
+      await note($, Object.fromEntries(keys.map((key, i) => [i === 0 ? uuid : `${uuid}:${i}`, { at, key }])))
     } catch {
       // this row goes unnoted; the row is kept as the engine kept it
+    }
+    return r
+  })
+
+  // The same prompt by its text, for when the hook above is passed by.
+  on('prompt.submit', async ($, e, next) => {
+    const at = new Date().toISOString()
+    const r = await next(e)
+    try {
+      if (!e.isMeta && !e.command && 'text' in r && typeof r.text === 'string' && r.text.trim() !== '') {
+        await note($, { [`prompt:${at}`]: { at, key: keyOf('user', r.text) } })
+      }
+    } catch {
+      // unnoted here; the prompt goes on as the engine had it
+    }
+    return r
+  })
+
+  // The same reply by its text, once the model's response is in (main loop only: a subagent's is not drawn there).
+  on('turn.step', async function* ($, e, next) {
+    const r = yield* next(e)
+    try {
+      if (!e.agentId && r.answer.trim() !== '') {
+        const at = new Date().toISOString()
+        await note($, { [`step:${e.turnId}:${e.index}`]: { at, key: keyOf('assistant', r.answer) } })
+      }
+    } catch {
+      // unnoted here; the response is the engine's as streamed
     }
     return r
   })

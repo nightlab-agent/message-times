@@ -4,6 +4,13 @@ The form is Keep a Changelog; versions follow SemVer.
 
 ## [Unreleased]
 
+## 0.1.1 - 2026-10-28
+
+### Fixed
+- Replies drew no time where a plugin seated above this one passes by its `session.append` hook. Seen live on 2026-10-28: the built-in `cc-plugin-sec-default` (Team accounts) "runs first and sent the event on past it", so the session's opening prompt was noted and none of the replies were. Prompts are now also noted at `prompt.submit` and replies at `turn.step` (main loop only), by their text.
+- Notes of one text made within 60 seconds of each other are one row, and the earliest is its time, so a row noted by two hooks still draws. Two rows with one text further apart still draw none.
+- 10 tests (2 new). A mutation dropping the `turn.step` note fails 1; one dropping the 60-second merge fails 3.
+
 ## 0.1.0 - 2026-10-28
 
 ### Added
