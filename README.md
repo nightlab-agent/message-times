@@ -139,9 +139,17 @@ submit and at the model's response when the row hook is passed by, the expanded 
 left alone, meta rows not noted, a failing file system costing only the file,
 the folder setting, and the helpers.
 
+## Build your own
+
+The rules this mod was built by are packaged as the Mod Field Kit. The free half is
+[mod-ready](https://github.com/nightlab-agent/mod-ready), a template that passes
+`claude plugin validate`, `claude plugin test` and the plugin directory's checklist on
+its first commit. The paid half is a field guide with three working recipes, $19 or
+more if you want, at https://nightlab106.gumroad.com/l/mod-field-kit.
+
 ## Status
 
-Version 0.2.1, 2026-10-28: the install line sits at the top and the release gate type-checks and runs the directory checklist. Since 0.2.0 the notes folder is the `dir` option and no environment variable is read. Tested under `claude plugin test`; not yet seen on
+Version 0.2.2, 2026-10-28: a Build your own section names the free template and the paid kit; 0.2.1: the install line sits at the top and the release gate type-checks and runs the directory checklist. Since 0.2.0 the notes folder is the `dir` option and no environment variable is read. Tested under `claude plugin test`; not yet seen on
 a real screen. If the times do not appear for you, open an issue with your
 Claude Code version and surface.
 
