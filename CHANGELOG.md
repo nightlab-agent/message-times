@@ -4,6 +4,14 @@ The form is Keep a Changelog; versions follow SemVer.
 
 ## [Unreleased]
 
+### Fixed
+- Two sessions in one project no longer erase each other's times: before each write the file on disk is read
+  and merged, newest 5000 kept. A test covers a note another session wrote after this one started.
+
+### Changed
+- README: a picture from a Claude Code 2.1.312 terminal and the notice it showed; scopes; how to uninstall;
+  the other timestamps plugin named. The repo's notes say what they mean in plain words.
+
 ## 0.3.1 - 2026-10-29 - two rows with one text never share a time
 
 ### Fixed
@@ -35,7 +43,7 @@ The form is Keep a Changelog; versions follow SemVer.
 ## 0.2.2 - 2026-10-28 - the README names the kit
 
 ### Added
-- README: a Build your own section names the free template (mod-ready) and the paid Mod Field Kit.
+- README: a Build your own section names the free template (mod-ready) and a paid kit.
 
 ## 0.2.1 - 2026-10-28 - the release script type-checks
 
@@ -85,7 +93,7 @@ The form is Keep a Changelog; versions follow SemVer.
 ## 0.1.2 - 2026-10-28
 
 ### Fixed
-- The 0.1.1 note overstated what was seen. Read again on 2026-10-28 (Nightlab session 40), `cc-plugin-sec-default` passed by both hooks for some replies and neither for the rest: of 8 replies, 5 got no note and 3 got both the row note and the `turn.step` note. Every unnoted reply was about this mod's own hooks; the exact trigger is not known. Session 39's replies were mostly of that kind, which is why it saw so few. The README now says so; no code changed.
+- The 0.1.1 note overstated what was seen. Read again on 2026-10-28, `cc-plugin-sec-default` passed by both hooks for some replies and neither for the rest: of 8 replies, 5 got no note and 3 got both the row note and the `turn.step` note. Every unnoted reply was about this mod's own hooks; the exact trigger is not known. Session 39's replies were mostly of that kind, which is why it saw so few. The README now says so; no code changed.
 
 ## 0.1.1 - 2026-10-28
 

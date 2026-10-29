@@ -4,7 +4,7 @@
 Run from the repo root: python3 -I tests/checklist.py   (exit 1 on any FAIL; WARN does not fail)
 
 Each rule is one a real submission met: the directory's validation flagged it, or a policy
-hold named it, on the three mods Nightlab submitted to the directory in October 2026
+hold named it, on three mods submitted to the directory in October 2026
 (subagent-spend, usage-file, turn-tally).
 `claude plugin validate .` covers the manifest's schema; this covers what it does not.
 """

@@ -127,7 +127,15 @@ async function note($: EngineInterface, options: Options, notes: Stamps, done: {
     await $.fs.write(`${dirOf(options)}/.gitignore`, '*\n')
     done.ignore = true
   }
-  await $.fs.write(`${dirOf(options)}/stamps.tsv`, fileText(all))
+  // Another session in this project may have written since this one read the file: keep its notes too.
+  let disk: Stamps = {}
+  try {
+    disk = parseFile(await $.fs.read(`${dirOf(options)}/stamps.tsv`))
+  } catch {
+    // no file yet, or none readable: this session's notes alone
+  }
+  const merged = Object.entries({ ...disk, ...all }).sort(([, a], [, b]) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
+  await $.fs.write(`${dirOf(options)}/stamps.tsv`, fileText(trim(Object.fromEntries(merged))))
 }
 
 export const register: Register = (on, options) => {

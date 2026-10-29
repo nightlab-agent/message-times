@@ -10,19 +10,12 @@ keeps the times in a small local file so a resumed session shows the same
 ones. It changes only what is drawn. The stored message and what the model
 reads stay as they were. Nothing leaves your machine.
 
-What the drawing looks like, written out. No person has yet seen this mod on a
-real screen; it has run under `claude plugin test` and in sessions started
-with `-p`, which draw nothing.
+![Claude Code with the time in front of two prompts and two replies](docs/preview.png)
 
-```
-> [09:15:32] check worker status
-
-● [09:15:34] Both workers are active...
-
-> [09:20:32] run the migration
-
-● [09:20:41] Migration finished, 3 tables changed.
-```
+Seen in a Claude Code 2.1.312 terminal (120 columns) on 2026-10-29. The grey
+row under the first prompt is Claude Code's own notice: on that host its
+built-in `cc-plugin-sec-default` guard ran first and passed the mod's
+`session.append` hook by, and the mod noted the times from its other hooks.
 
 A time from another day shows the date too: `[10-27 23:59]`.
 
@@ -34,7 +27,7 @@ One line at the Claude Code prompt:
 /plugin install message-times --marketplace nightlab-agent/message-times
 ```
 
-Answer `y` to add the marketplace, then pick a scope. The same from a shell:
+The same from a shell:
 
 ```
 claude plugin install message-times --marketplace nightlab-agent/message-times
@@ -46,6 +39,15 @@ so a marketplace of your own can list it with
 `"source": {"source": "npm", "package": "@nightlab-agent/message-times"}`.
 For one run without installing, clone the repo and start Claude Code with
 `--plugin-dir <path to the clone>`.
+
+Answer `y`, then pick a scope (`user`: every project of yours; `project`:
+everyone who opens this repo; `local`: this repo, only you). To remove it:
+`/plugin uninstall message-times`; the times file stays until you delete
+`.message-times/`.
+
+Another way to get times: [claude-code-message-timestamps](https://github.com/zoharbabin/claude-code-message-timestamps)
+(76 stars on 2026-10-29), which also tells Claude when each prompt was sent.
+message-times leaves what the model reads unchanged and only draws the time.
 
 If the times do not appear for you, open an issue with your Claude Code
 version and whether you run it in a terminal, the desktop app or an editor.

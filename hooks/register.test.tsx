@@ -279,3 +279,15 @@ test('a subagent\'s kept rows are not noted, so a main reply with the same text 
   await drawReply($, 'r-unknown', 'Done.')
   expect(drawn[0]).toMatch(STAMP)
 })
+
+test('two sessions in one project: a note another session wrote after this one started stays in the file', async ($, on) => {
+  const opts: { file?: string } = { file: 'u-1\t2026-10-29T10:00:00.000Z\tuser:first\n' }
+  const { writes } = world(on, opts)
+  await start($)
+  opts.file += 'u-2\t2026-10-29T10:01:00.000Z\tuser:from the other session\n'
+  await prompt($, 'u-3', 'third')
+  const last = writes.filter(w => w.path.endsWith('stamps.tsv')).at(-1)!.text
+  expect(last).toContain('u-1\t')
+  expect(last).toContain('u-2\t')
+  expect(last).toContain('u-3\t')
+})
