@@ -62,7 +62,9 @@ response arrives, by their text alone. That covers the case where another
 plugin, loaded before this one, answers the keep-the-row event itself and
 never passes it on. Seen in `-p` sessions on one Team account: the built-in
 `cc-plugin-sec-default` plugin did that for some replies, and those replies
-got no time. Notes of one
+got no time. Claude Code runs that guard before the mods you install where an
+organization manages Claude Code or the login is a Team or Enterprise one
+([the order mods run in](https://code.claude.com/docs/en/plugins/mods/events.md#the-order-mods-run-in)). Notes of one
 text made within 10 seconds of each other count as one row, as long as they
 came from different places: at most one made under a row id, one made when
 you sent the prompt, one made when the reply arrived. Two row ids with the
