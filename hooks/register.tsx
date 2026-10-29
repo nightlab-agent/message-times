@@ -97,13 +97,21 @@ type Options = Parameters<Register>[1]
 /** The folder the notes are kept in: the `dir` option, else `.message-times` under the project. */
 const dirOf = (options: Options) => String(options.dir || '.message-times')
 
-/** Adds notes to the session's and writes the file. */
-async function note($: EngineInterface, options: Options, notes: Stamps) {
+/** Adds notes to the session's and writes the file. Before the first write of a session it writes
+ * `<dir>/.gitignore` holding `*`, so git ignores the folder in every project with no step from the user:
+ * the file holds the start of what was typed and answered, and must never ride along in a commit. */
+async function note($: EngineInterface, options: Options, notes: Stamps, done: { ignore: boolean }) {
   const all = await update($, stamps, xs => trim({ ...xs, ...notes }))
+  if (!done.ignore) {
+    await $.fs.write(`${dirOf(options)}/.gitignore`, '*\n')
+    done.ignore = true
+  }
   await $.fs.write(`${dirOf(options)}/stamps.tsv`, fileText(all))
 }
 
 export const register: Register = (on, options) => {
+  // whether this session has written the folder's .gitignore yet
+  const done = { ignore: false }
   on('session.start', async ($, e, next) => {
     try {
       const kept = parseFile(await $.fs.read(`${dirOf(options)}/stamps.tsv`))
@@ -127,7 +135,7 @@ export const register: Register = (on, options) => {
       const uuid = r.uuid
       // A prompt is one row; a reply's text blocks are each drawn as a row of their own.
       const keys = kind === 'user' ? [keyOf(kind, texts.join('\n'))] : texts.map(t => keyOf(kind, t))
-      await note($, options, Object.fromEntries(keys.map((key, i) => [i === 0 ? uuid : `${uuid}:${i}`, { at, key }])))
+      await note($, options, Object.fromEntries(keys.map((key, i) => [i === 0 ? uuid : `${uuid}:${i}`, { at, key }])), done)
     } catch {
       // this row goes unnoted; the row is kept as the engine kept it
     }
@@ -140,7 +148,7 @@ export const register: Register = (on, options) => {
     const r = await next(e)
     try {
       if (!e.isMeta && !e.command && 'text' in r && typeof r.text === 'string' && r.text.trim() !== '') {
-        await note($, options, { [`prompt:${at}`]: { at, key: keyOf('user', r.text) } })
+        await note($, options, { [`prompt:${at}`]: { at, key: keyOf('user', r.text) } }, done)
       }
     } catch {
       // unnoted here; the prompt goes on as the engine had it
@@ -154,7 +162,7 @@ export const register: Register = (on, options) => {
     try {
       if (!e.agentId && r.answer.trim() !== '') {
         const at = new Date().toISOString()
-        await note($, options, { [`step:${e.turnId}:${e.index}`]: { at, key: keyOf('assistant', r.answer) } })
+        await note($, options, { [`step:${e.turnId}:${e.index}`]: { at, key: keyOf('assistant', r.answer) } }, done)
       }
     } catch {
       // unnoted here; the response is the engine's as streamed

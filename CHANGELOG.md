@@ -4,6 +4,20 @@ The form is Keep a Changelog; versions follow SemVer.
 
 ## [Unreleased]
 
+## 0.3.0 - 2026-10-29 - the notes folder is kept out of git
+
+### Added
+- Before its first write in a session the mod writes `<dir>/.gitignore` holding one line, `*`, so git ignores the notes
+  folder in every project with no step from you. `stamps.tsv` holds the first 160 characters of each prompt and reply,
+  and until now nothing kept a user from committing it with the project (found by an outside review, 2026-10-29).
+- A test for it, which failed before the change.
+
+### Changed
+- README rewritten in plain words: what it draws, how to install it, what it writes and how to delete it. It no longer
+  carries a version history (this file does), and no longer advertises other products.
+- README says plainly that matching a drawn row to its note by text is fragile, and why the text match is still there.
+- `tests/release.sh` checks the version string in four files (the README no longer carries one).
+
 ## 0.2.2 - 2026-10-28 - the README names the kit
 
 ### Added

@@ -170,7 +170,8 @@ test('the dir option moves the file', { options: { dir: '/var/notes' } }, async 
   const { writes } = world(on)
   await start($)
   await prompt($, 'u-1', 'a')
-  expect(writes[0]!.path).toBe('/var/notes/stamps.tsv')
+  expect(writes[0]!.path).toBe('/var/notes/.gitignore')
+  expect(writes[1]!.path).toBe('/var/notes/stamps.tsv')
 })
 
 test('helpers: time on another day shows the date; the file keeps the newest KEEP; bad lines are skipped', () => {
@@ -186,4 +187,15 @@ test('helpers: time on another day shows the date; the file keeps the newest KEE
   expect(parseFile(fileText({ a: { at: '2026-10-28T00:00:00Z', key: 'user:tab\there' } }))).toEqual({ a: { at: '2026-10-28T00:00:00Z', key: 'user:tab here' } })
   expect(keyOf('user', '  check\n worker   status ')).toBe('user:check worker status')
   expect(stampFor({}, 'x', 'user:a')).toBe('')
+})
+
+test('before its first write the mod writes <dir>/.gitignore holding one line, *, once, so git never sees the folder', async ($, on) => {
+  const { writes } = world(on)
+  await start($)
+  await prompt($, 'u-1', 'first')
+  await prompt($, 'u-2', 'second')
+  expect(writes[0]!.path.endsWith('/.message-times/.gitignore')).toBe(true)
+  expect(writes[0]!.text).toBe('*\n')
+  expect(writes.filter(w => w.path.endsWith('/.gitignore')).length).toBe(1)
+  expect(writes.filter(w => w.path.endsWith('/stamps.tsv')).length).toBe(2)
 })

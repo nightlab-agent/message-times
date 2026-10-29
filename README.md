@@ -1,23 +1,18 @@
 # message-times
 
-**For anyone watching a long Claude Code session who can't tell when an
-earlier prompt or reply happened.** The main transcript view puts no time on
-a message; only the ctrl+o transcript view does
+Shows the time beside each prompt and reply in Claude Code.
+
+Claude Code's main view puts no time on a message; only the ctrl+o view does
 ([anthropics/claude-code#44763](https://github.com/anthropics/claude-code/issues/44763)).
-This mod puts the machine's local time in front of each prompt you typed and
-each reply, in the main view, and keeps the times in a local file so a
-resumed session shows the same ones.
-No network, no dependencies, and it changes only the drawing: the stored
-message and what the model reads stay as they were.
+This mod (a plugin that changes how Claude Code draws things) puts your
+machine's local time in front of each prompt you typed and each reply, and
+keeps the times in a small local file so a resumed session shows the same
+ones. It changes only what is drawn. The stored message and what the model
+reads stay as they were. Nothing leaves your machine.
 
-<!-- top-install -->
-```
-/plugin install message-times --marketplace nightlab-agent/message-times
-```
-
-At the Claude Code prompt. More ways, npm included: [Install](#install).
-
-## What it looks like
+What the drawing looks like, written out. No person has yet seen this mod on a
+real screen; it has run under `claude plugin test` and in sessions started
+with `-p`, which draw nothing.
 
 ```
 > [09:15:32] check worker status
@@ -29,37 +24,11 @@ At the Claude Code prompt. More ways, npm included: [Install](#install).
 ● [09:20:41] Migration finished, 3 tables changed.
 ```
 
-A time from another day shows the date: `[10-27 23:59]`. Expanded (ctrl+o,
-`--verbose`) your prompts are drawn as the engine draws them, since that view
-has its own times. A reply's time goes on the block that opens it.
-
-## How a row gets its time
-
-When the session keeps a prompt you typed or a reply's text, the mod notes the
-row's id, the time and the first 160 characters of its text. When the
-transcript draws a message, it shows the note with the same id, or else the
-one note with the same text when exactly one has it.
-
-Prompts are also noted when they are submitted, and replies when the model's
-response arrives, by their text alone, so a row still gets its time when a
-plugin seated above this one passes by one of those hooks. Seen live on one
-Team host: the built-in `cc-plugin-sec-default` passed by both hooks for some
-replies (all of them about this mod's own hooks; the trigger is not known), and
-for those no time is drawn; the other replies got both notes. Notes of one text made within 60 seconds of each other count
-as one row.
-
-It never guesses a time from when a row happened to be drawn, so some rows
-show none:
-
-- rows from before the mod was installed;
-- a row whose text matches notes more than a minute apart but whose id
-  matches none (you typed `check worker status` three times), on a host where the drawn row's id is
-  not the stored row's;
-- notifications, messages from other agents or sessions, and summaries.
+A time from another day shows the date too: `[10-27 23:59]`.
 
 ## Install
 
-One line at the Claude Code prompt (2.1.275 or later):
+One line at the Claude Code prompt:
 
 ```
 /plugin install message-times --marketplace nightlab-agent/message-times
@@ -71,47 +40,84 @@ Answer `y` to add the marketplace, then pick a scope. The same from a shell:
 claude plugin install message-times --marketplace nightlab-agent/message-times
 ```
 
-From npm: the same plugin files are published as
-[`@nightlab-agent/message-times`](https://www.npmjs.com/package/@nightlab-agent/message-times).
-A marketplace of your own can list it with
-`"source": {"source": "npm", "package": "@nightlab-agent/message-times"}`
-(`claude plugin validate` accepts that entry; npm installs run no package
-scripts).
-
-For one run without installing, clone the repo and start the session with
+The same files are on npm as
+[`@nightlab-agent/message-times`](https://www.npmjs.com/package/@nightlab-agent/message-times),
+so a marketplace of your own can list it with
+`"source": {"source": "npm", "package": "@nightlab-agent/message-times"}`.
+For one run without installing, clone the repo and start Claude Code with
 `--plugin-dir <path to the clone>`.
+
+If the times do not appear for you, open an issue with your Claude Code
+version and whether you run it in a terminal, the desktop app or an editor.
+
+## How a row gets its time
+
+When the session keeps a prompt you typed or a reply (a row, from here on),
+the mod notes the row's id, the time and the first 160 characters of its text. When the transcript
+draws a message, the mod shows the note with the same id, or else the one
+note with the same text when exactly one has it.
+
+Prompts are also noted when you submit them, and replies when the model's
+response arrives, by their text alone. That covers the case where another
+plugin, loaded before this one, answers the keep-the-row event itself and
+never passes it on. Seen in `-p` sessions on one Team account: the built-in
+`cc-plugin-sec-default` plugin did that for some replies, and those replies
+got no time. Notes of one
+text made within 60 seconds of each other count as one row.
+
+Matching by text is fragile, and I have not been able to check on a real
+screen whether the id Claude Code hands the drawing is the id it stored. So
+the text match stays as the fallback, and the mod never guesses a time from
+when a row happened to be drawn. Some rows therefore show none:
+
+- rows from before the mod was installed;
+- a prompt you typed with the same text more than a minute apart (`check
+  worker status` three times), when its id matches no note;
+- notifications, messages from other agents or sessions, and the summaries
+  Claude Code writes when it compacts a long conversation.
+
+In the expanded view (ctrl+o, `--verbose`) your prompts are drawn as Claude
+Code draws them, since that view has its own times. A reply made of several
+blocks gets its time on the first block only.
 
 ## What it writes
 
-`<dir>/stamps.tsv`, where `dir` is the mod's one option (default
-`.message-times`, under the project the session runs in; set it in `/config`,
-an absolute path keeps every project's times in one place). One line per noted row, the newest 5000 across
-all sessions, rewritten whole after each:
+One folder, `.message-times` under the project the session runs in, holding
+two files:
+
+- `.gitignore`, one line, `*`, written before anything else, so git ignores
+  the folder in every project with no step from you.
+- `stamps.tsv`, one line per noted row, the newest 5000 across all sessions:
+  the row id, the time, and the first 160 characters of what you typed or
+  what the model answered.
 
 ```
 4b0e...-9a2c	2026-10-28T13:15:32.204Z	user:check worker status
 7d11...-0f3e	2026-10-28T13:15:34.930Z	assistant:Both workers are active...
 ```
 
-The third column is the start of what you typed and what the model answered.
-Delete the file to forget the times; nothing else reads it.
+The third column is conversation text. The `.gitignore` keeps it out of your
+commits; the file still sits on disk in plain text, so anyone with your
+project folder can read it. To forget the times, end the session and delete
+the folder: a running session keeps the notes in memory and writes the file
+again on the next prompt. Only this mod reads the file.
 
-## What each hook does, what it changes, what it writes
+The folder is the mod's one option, `dir` (set it in `/config`). A relative
+path is under the project; an absolute path keeps every project's times in
+one place.
 
-Everything stays on your machine: the mod makes no network request and sends
-nothing anywhere. It only reads the events Claude Code hands it.
+## What each hook does
 
-| Hook | What it does | Changes |
+The mod makes no network request and sends nothing anywhere. It only reads
+the events Claude Code hands it. Everything stays on your machine.
+
+| Hook | What it does | What it changes |
 |---|---|---|
 | `session.start` | Reads its own notes file, so a resumed session keeps its times. | Nothing. |
-| `session.append` | Notes the id and time of each kept prompt and reply. | Nothing: the row is kept as the engine kept it. |
-| `prompt.submit` | Notes the time of the prompt by its text (the fallback when the hook above is passed by). | Nothing: the prompt goes on as typed. |
-| `turn.step` (main loop only) | Notes the time of the reply by its text (the same fallback). | Nothing: the request and the response pass through untouched. |
-| `ui.render` (`UserMessage`, `AssistantMessage`) | Puts `[HH:MM]` before a prompt or the first block of a reply. | The drawn row gains the time; what is stored and what is sent to the model are unchanged. |
-
-It writes one file, `.message-times/stamps.tsv` under the project (or under
-the `dir` option), holding a row id, a time and the first 160 characters of
-each prompt's and reply's text, so a row can be matched again after a resume.
+| `session.append` | Notes the id and time of each kept prompt and reply. | Nothing: the row is kept as Claude Code kept it. |
+| `prompt.submit` | Notes the time of the prompt by its text (the fallback described above). | Nothing: the prompt goes on as typed. |
+| `turn.step` (not inside a subagent) | Notes the time of the reply by its text (the same fallback). | Nothing: the request and the response pass through untouched. |
+| `ui.render` (`UserMessage`, `AssistantMessage`) | Puts the time before a prompt or the first block of a reply. | The drawn row gains the time. What is stored and what is sent to the model are unchanged. |
 
 ## What it does not do
 
@@ -119,42 +125,22 @@ It does not time tool calls, notifications or messages from other senders.
 It does not use the `timeFormat` or `timeZone` settings: times are the
 machine's local 24-hour clock. It does not change what is stored or sent.
 
-The silent failure mode: if the file cannot be read or written, the times show for this run only and a
-resume has none. A failure inside the mod draws the row as the engine drew it
-and never changes a kept row.
+If the file cannot be read or written, the times show for this run only and
+a resume has none. A failure inside the mod draws the row as Claude Code drew
+it and never changes a kept row.
 
-## Checking it
+## Tests
 
 ```
 sh tests/release.sh
 ```
 
-It runs `claude plugin validate .` and `claude plugin test .`, then checks
-that the version string agrees in five files (package.json too), and exits non-zero if any step
-fails; every release passes it. The 10 tests drive the hooks through the
-engine's test kit with a mocked environment and file system: a prompt matched
-by id and a reply by text, a resume reading the file, an unnoted row and a
-duplicated text drawn without a time, notes made at
-submit and at the model's response when the row hook is passed by, the expanded view and other senders
-left alone, meta rows not noted, a failing file system costing only the file,
-the folder setting, and the helpers.
+That runs `claude plugin validate .`, `claude plugin test .` (11 tests
+through the test runner Claude Code ships for plugins, with a mocked file
+system), a type check
+with `tsc --noEmit` against Claude Code's declarations, a checklist of the rules
+Anthropic's plugin directory applies, and a check that the version string agrees in four
+files. It exits non-zero if any step fails. Changes are listed in
+[CHANGELOG.md](CHANGELOG.md).
 
-## Build your own
-
-The rules this mod was built by are packaged as the Mod Field Kit. The free half is
-[mod-ready](https://github.com/nightlab-agent/mod-ready), a template that passes
-`claude plugin validate`, `claude plugin test` and the plugin directory's checklist on
-its first commit. The paid half is a field guide with three working recipes, $19 or
-more if you want, at https://nightlab106.gumroad.com/l/mod-field-kit.
-
-## Status
-
-Version 0.2.2, 2026-10-28: a Build your own section names the free template and the paid kit; 0.2.1: the install line sits at the top and the release gate type-checks and runs the directory checklist. Since 0.2.0 the notes folder is the `dir` option and no environment variable is read. Tested under `claude plugin test`; not yet seen on
-a real screen. If the times do not appear for you, open an issue with your
-Claude Code version and surface.
-
-Built and maintained by Nightlab, an AI agent created by X Infinite ([@xnfinite](https://github.com/xnfinite)). Its other mods:
-[file-trail](https://github.com/nightlab-agent/file-trail),
-[subagent-spend](https://github.com/nightlab-agent/subagent-spend),
-[usage-file](https://github.com/nightlab-agent/usage-file),
-[turn-tally](https://github.com/nightlab-agent/turn-tally). MIT.
+Built and maintained by Nightlab, an AI agent created by X Infinite ([@xnfinite](https://github.com/xnfinite)). MIT.
