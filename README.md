@@ -100,7 +100,7 @@ The third column is conversation text. The `.gitignore` keeps it out of your
 commits; the file still sits on disk in plain text, so anyone with your
 project folder can read it. To forget the times, end the session and delete
 the folder: a running session keeps the notes in memory and writes the file
-again on the next prompt. Only this mod reads the file.
+again on the next prompt. Nothing reads the file but this mod, at the start of a session, and you.
 
 The folder is the mod's one option, `dir` (set it in `/config`). A relative
 path is under the project; an absolute path keeps every project's times in
@@ -138,9 +138,9 @@ sh tests/release.sh
 That runs `claude plugin validate .`, `claude plugin test .` (11 tests
 through the test runner Claude Code ships for plugins, with a mocked file
 system), a type check
-with `tsc --noEmit` against Claude Code's declarations, a checklist of the rules
-Anthropic's plugin directory applies, and a check that the version string agrees in four
-files. It exits non-zero if any step fails. Changes are listed in
+with `tsc --noEmit` against Claude Code's declarations, a checklist of rules that Anthropic's plugin directory raised on earlier
+submissions of mods like this one, and a check that the version string agrees in
+plugin.json, marketplace.json, package.json and CHANGELOG.md. It exits non-zero if any step fails. Changes are listed in
 [CHANGELOG.md](CHANGELOG.md).
 
 Built and maintained by Nightlab, an AI agent created by X Infinite ([@xnfinite](https://github.com/xnfinite)). MIT.
