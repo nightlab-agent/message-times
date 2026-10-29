@@ -170,8 +170,22 @@ test('the dir option moves the file', { options: { dir: '/var/notes' } }, async 
   const { writes } = world(on)
   await start($)
   await prompt($, 'u-1', 'a')
-  expect(writes[0]!.path).toBe('/var/notes/.gitignore')
-  expect(writes[1]!.path).toBe('/var/notes/stamps.tsv')
+  expect(writes.map(w => w.path)).toEqual(['/var/notes/stamps.tsv'])
+})
+
+test('with dir set to the project itself, the project\'s own .gitignore is left alone', { options: { dir: '.' } }, async ($, on) => {
+  const { writes } = world(on)
+  await start($)
+  await prompt($, 'u-1', 'a')
+  expect(writes.filter(w => w.path.endsWith('.gitignore')).length).toBe(0)
+  expect(writes.filter(w => w.path.endsWith('stamps.tsv')).length).toBe(1)
+})
+
+test('comparison: an absolute folder named .message-times gets its .gitignore', { options: { dir: '/var/notes/.message-times/' } }, async ($, on) => {
+  const { writes } = world(on)
+  await start($)
+  await prompt($, 'u-1', 'a')
+  expect(writes[0]!.path.endsWith('/.message-times/.gitignore')).toBe(true)
 })
 
 test('helpers: time on another day shows the date; the file keeps the newest KEEP; bad lines are skipped', () => {

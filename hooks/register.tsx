@@ -140,7 +140,9 @@ async function note($: EngineInterface, options: Options, notes: Stamps, done: {
 
 export const register: Register = (on, options) => {
   // whether this session has written the folder's .gitignore yet
-  const done = { ignore: false }
+  // Only a folder named .message-times is the mod's own; any other may hold the user's files (even be the
+  // project itself, `.`), so no .gitignore is written there.
+  const done = { ignore: dirOf(options).replace(/\/+$/, '').split('/').at(-1) !== '.message-times' }
   on('session.start', async ($, e, next) => {
     try {
       const kept = parseFile(await $.fs.read(`${dirOf(options)}/stamps.tsv`))
