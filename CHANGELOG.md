@@ -4,6 +4,8 @@ The form is Keep a Changelog; versions follow SemVer.
 
 ## [Unreleased]
 
+## 0.3.3 - 2026-10-29
+
 ### Fixed
 - The mod writes its `.gitignore` only in a folder named `.message-times`: with the `dir` option set to `.`,
   it replaced the project's own `.gitignore` with `*`. The default folder still gets its `.gitignore`.
