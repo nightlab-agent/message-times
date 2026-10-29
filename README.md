@@ -63,7 +63,10 @@ plugin, loaded before this one, answers the keep-the-row event itself and
 never passes it on. Seen in `-p` sessions on one Team account: the built-in
 `cc-plugin-sec-default` plugin did that for some replies, and those replies
 got no time. Notes of one
-text made within 60 seconds of each other count as one row.
+text made within 10 seconds of each other count as one row, as long as they
+came from different places: at most one made under a row id, one made when
+you sent the prompt, one made when the reply arrived. Two row ids with the
+same text, two submit notes, or two notes further apart, are two rows.
 
 Matching by text is fragile, and I have not been able to check on a real
 screen whether the id Claude Code hands the drawing is the id it stored. So
@@ -71,8 +74,11 @@ the text match stays as the fallback, and the mod never guesses a time from
 when a row happened to be drawn. Some rows therefore show none:
 
 - rows from before the mod was installed;
-- a prompt you typed with the same text more than a minute apart (`check
-  worker status` three times), when its id matches no note;
+- a prompt you typed with the same text as another (`yes`, twice), when its
+  id matches no note: which of the two it is cannot be known;
+- a prompt the session kept more than 10 seconds after you sent it (one
+  typed while a turn was still running can be), when its id matches no note:
+  its two notes then read as two rows;
 - notifications, messages from other agents or sessions, and the summaries
   Claude Code writes when it compacts a long conversation.
 
@@ -114,7 +120,7 @@ the events Claude Code hands it. Everything stays on your machine.
 | Hook | What it does | What it changes |
 |---|---|---|
 | `session.start` | Reads its own notes file, so a resumed session keeps its times. | Nothing. |
-| `session.append` | Notes the id and time of each kept prompt and reply. | Nothing: the row is kept as Claude Code kept it. |
+| `session.append` | Notes the id and time of each kept prompt and reply (not a subagent's). | Nothing: the row is kept as Claude Code kept it. |
 | `prompt.submit` | Notes the time of the prompt by its text (the fallback described above). | Nothing: the prompt goes on as typed. |
 | `turn.step` (not inside a subagent) | Notes the time of the reply by its text (the same fallback). | Nothing: the request and the response pass through untouched. |
 | `ui.render` (`UserMessage`, `AssistantMessage`) | Puts the time before a prompt or the first block of a reply. | The drawn row gains the time. What is stored and what is sent to the model are unchanged. |
@@ -135,7 +141,7 @@ it and never changes a kept row.
 sh tests/release.sh
 ```
 
-That runs `claude plugin validate .`, `claude plugin test .` (11 tests
+That runs `claude plugin validate .`, `claude plugin test .` (17 tests
 through the test runner Claude Code ships for plugins, with a mocked file
 system), a type check
 with `tsc --noEmit` against Claude Code's declarations, a checklist of rules that Anthropic's plugin directory raised on earlier
@@ -143,4 +149,6 @@ submissions of mods like this one, and a check that the version string agrees in
 plugin.json, marketplace.json, package.json and CHANGELOG.md. It exits non-zero if any step fails. Changes are listed in
 [CHANGELOG.md](CHANGELOG.md).
 
-Built and maintained by Nightlab, an AI agent created by X Infinite ([@xnfinite](https://github.com/xnfinite)). MIT.
+Built and maintained by Nightlab, an AI agent created by X Infinite ([@xnfinite](https://github.com/xnfinite)).
+
+MIT.

@@ -14,14 +14,16 @@ import type { Stamp, Stamps } from '../types'
 // render hook may not): the row whose id was noted shows that time; otherwise
 // the one noted row of that kind with the same text, when exactly one has it.
 // A row with no such note (one drawn from before the mod was installed, or one
-// of several rows saying the same thing) shows no time: the mod never guesses a
-// time from when a row happened to be drawn.
+// of several rows saying the same thing, however close together) shows no
+// time: the mod never guesses a time from when a row happened to be drawn.
 //
 // A plugin seated above this one may continue past its `session.append` hook
 // (the built-in cc-plugin-sec-default does on Team accounts: "runs first and
 // sent the event on past it"). So a prompt is noted at `prompt.submit` too and
 // a reply at `turn.step`, by text alone; notes of one text made within
-// SAME_ROW_MS of each other are one row, and the earliest is its time.
+// SAME_ROW_MS of each other, with at most one note from each source among
+// them (one row id, one submit note, one step note), are one row, and the
+// earliest is its time.
 //
 // DESIGN NOTE, deliberately narrow: it changes the drawing only, never the
 // stored message or what the model reads; no network; every failure of its own
@@ -30,8 +32,8 @@ import type { Stamp, Stamps } from '../types'
 /** Notes kept in the session and the file, newest last. */
 export const KEEP = 5000
 
-/** Notes of one text this close together are one row noted by two hooks. */
-export const SAME_ROW_MS = 60_000
+/** Notes of one row made by two hooks sit this close together; a note further off is another row. */
+export const SAME_ROW_MS = 10_000
 
 // Change the tag when Stamp's fields change: it declines what an earlier version stored.
 const stamps = atom({ plugin: 'message-times', key: 'stamps' } as const, {} as Stamps, { shape: 'stamps-1' })
@@ -70,19 +72,38 @@ export const parseFile = (text: string): Stamps => {
   return out
 }
 
-/** The time a drawn row shows: its own id's note, else the only note with its text; '' when neither. */
+/** A note made by text alone (at `prompt.submit` or `turn.step`), not under the row's own id. */
+export const byText = (id: string) => id.startsWith('prompt:') || id.startsWith('step:')
+
+/** Where a note came from: one row gets at most one note from each source. A row id's notes share
+ * their uuid (a reply's later blocks are `uuid:1`, `uuid:2`); a prompt is noted once at submit; a reply
+ * once at the step that produced it. */
+const sourceOf = (id: string) => (id.startsWith('prompt:') ? 'prompt' : id.startsWith('step:') ? 'step' : `row:${id.split(':')[0]!}`)
+
+/** The time a drawn row shows: its own id's note, else the time of the one row with its text; '' when
+ * there is none, or more than one. The notes of one row all sit within SAME_ROW_MS of its first and
+ * come one from each source at most: one row id, one submit note, one step note. A note further off, a
+ * second row id however close ("yes" typed twice, 30 seconds apart), or a second submit note, is a
+ * second row, and which of the two an unrecognized row is cannot be known. */
 export const stampFor = (all: Stamps, id: string, key: string) => {
   const own = all[id]
   if (own) return own.at
-  const times = Object.values(all)
-    .filter(s => s.key === key)
-    .map(s => new Date(s.at).getTime())
-    .filter(t => !Number.isNaN(t))
-    .sort((a, b) => a - b)
-  if (times.length === 0) return ''
-  // two rows with this text, further apart than one row's notes: which is which is not known
-  if (times[times.length - 1]! - times[0]! > SAME_ROW_MS) return ''
-  return new Date(times[0]!).toISOString()
+  const notes = Object.entries(all)
+    .filter(([, s]) => s.key === key)
+    .map(([nid, s]) => ({ id: nid, t: new Date(s.at).getTime() }))
+    .filter(n => !Number.isNaN(n.t))
+    .sort((a, b) => a.t - b.t)
+  if (notes.length === 0) return ''
+  const first = notes[0]!.t
+  const sources = new Set<string>()
+  for (const n of notes) {
+    if (n.t - first > SAME_ROW_MS) return ''
+    const source = sourceOf(n.id)
+    // a second note from the same source is a second row, except a reply's own later blocks
+    if (sources.has(source) ? !source.startsWith('row:') : source.startsWith('row:') && [...sources].some(x => x.startsWith('row:'))) return ''
+    sources.add(source)
+  }
+  return new Date(first).toISOString()
 }
 
 type Block = { type: string; text?: unknown }
@@ -127,6 +148,8 @@ export const register: Register = (on, options) => {
     const r = await next(e)
     try {
       const m = e.message
+      // a subagent's rows are not drawn in the main view, and their text must not stand for a main row's
+      if (e.agentId !== undefined) return r
       const kind = e.door === 'prompt' && m.type === 'user' && !m.isMeta ? 'user' : e.door === 'response' && m.type === 'assistant' ? 'assistant' : null
       if (!kind || r.uuid === undefined) return r
       const texts = textsOf(r.message.content)

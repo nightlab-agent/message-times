@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { TestBody } from 'claude-code/testing'
 
-import { fileText, KEEP, keyOf, parseFile, stampFor, timeOf, trim } from './register'
+import { byText, fileText, KEEP, keyOf, parseFile, stampFor, timeOf, trim } from './register'
 
 // Each test stands for the engine beneath the plugin: it answers
 // `session.start`, `$.fs.read` and `$.fs.write`, keeps the rows
@@ -198,4 +198,84 @@ test('before its first write the mod writes <dir>/.gitignore holding one line, *
   expect(writes[0]!.text).toBe('*\n')
   expect(writes.filter(w => w.path.endsWith('/.gitignore')).length).toBe(1)
   expect(writes.filter(w => w.path.endsWith('/stamps.tsv')).length).toBe(2)
+})
+
+test('"yes" kept twice under two ids 30 seconds apart: a row not under either id gets no time; each own row keeps its own', async ($, on) => {
+  const earlier = new Date(Date.now() - 30_000).toISOString()
+  const { drawn } = world(on, { file: `u-1\t${earlier}\t${keyOf('user', 'yes')}\n` })
+  await start($)
+  await prompt($, 'u-2', 'yes')
+  await drawUser($, 'r-unknown', 'yes')
+  await drawUser($, 'u-1', 'yes')
+  await drawUser($, 'u-2', 'yes')
+  expect(drawn[0]).toBe('yes')
+  expect(drawn[1]).toBe(`[${timeOf(earlier, new Date())}] yes`)
+  expect(drawn[2]).toMatch(STAMP)
+})
+
+test('control: one row noted by its text at submit and under its id a second later is one row, and a row drawn under another id gets its time', async ($, on) => {
+  const earlier = new Date(Date.now() - 1_000).toISOString()
+  const { drawn } = world(on, { file: `prompt:${earlier}\t${earlier}\t${keyOf('user', 'yes')}\n` })
+  await start($)
+  await prompt($, 'u-1', 'yes')
+  await drawUser($, 'r-unknown', 'yes')
+  expect(drawn[0]).toBe(`[${timeOf(earlier, new Date())}] yes`)
+})
+
+test('"yes" noted by text alone 30 seconds ago (its keep passed by) and "yes" kept now under an id are two rows: an unrecognized row gets no time', async ($, on) => {
+  const earlier = new Date(Date.now() - 30_000).toISOString()
+  const { drawn } = world(on, { file: `prompt:${earlier}\t${earlier}\t${keyOf('user', 'yes')}\n` })
+  engine(on, '')
+  await start($)
+  await submit($, 'yes')
+  await prompt($, 'u-2', 'yes')
+  await drawUser($, 'r-unknown', 'yes')
+  await drawUser($, 'u-2', 'yes')
+  expect(drawn[0]).toBe('yes')
+  expect(drawn[1]).toMatch(STAMP)
+})
+
+test('stampFor: two row ids or two submit notes refuse, however close; one row id with text notes answers; text notes alone answer; byText names the text-only ids', () => {
+  const at = (s: number) => new Date(Date.UTC(2026, 9, 29, 9, 0, s)).toISOString()
+  const key = 'user:yes'
+  expect(stampFor({ 'u-1': { at: at(0), key }, 'u-2': { at: at(30), key } }, 'r', key)).toBe('')
+  expect(stampFor({ 'u-1': { at: at(0), key }, 'u-2': { at: at(1), key } }, 'r', key)).toBe('')
+  expect(stampFor({ 'u-1': { at: at(0), key }, 'prompt:x': { at: at(1), key }, 'u-2': { at: at(30), key } }, 'r', key)).toBe('')
+  expect(stampFor({ 'prompt:x': { at: at(0), key }, 'u-1': { at: at(3), key } }, 'r', key)).toBe(at(0))
+  expect(stampFor({ 'prompt:x': { at: at(0), key }, 'u-1': { at: at(30), key } }, 'r', key)).toBe('')
+  expect(stampFor({ 'prompt:x': { at: at(0), key }, 'step:t:0': { at: at(5), key } }, 'r', key)).toBe(at(0))
+  expect(stampFor({ 'prompt:x': { at: at(0), key }, 'prompt:y': { at: at(30), key } }, 'r', key)).toBe('')
+  expect(stampFor({ 'prompt:x': { at: at(0), key }, 'prompt:y': { at: at(8), key } }, 'r', key)).toBe('')
+  expect(stampFor({ 'step:t:0': { at: at(0), key: 'assistant:Done.' }, 'step:u:0': { at: at(4), key: 'assistant:Done.' } }, 'r', 'assistant:Done.')).toBe('')
+  expect(stampFor({ 'step:t:0': { at: at(0), key: 'assistant:Done.' }, 'a-1': { at: at(1), key: 'assistant:Done.' } }, 'r', 'assistant:Done.')).toBe(at(0))
+  expect(stampFor({ 'a-1': { at: at(0), key: 'assistant:same' }, 'a-1:1': { at: at(0), key: 'assistant:same' } }, 'r', 'assistant:same')).toBe(at(0))
+  expect(byText('prompt:2026')).toBe(true)
+  expect(byText('step:t-1:0')).toBe(true)
+  expect(byText('u-1')).toBe(false)
+})
+
+test('"yes" sent twice 8 seconds apart with both keeps passed by: two rows noted by text alone, and an unrecognized row gets no time', async ($, on) => {
+  const earlier = new Date(Date.now() - 8_000).toISOString()
+  const { drawn } = world(on, { file: `prompt:${earlier}\t${earlier}\t${keyOf('user', 'yes')}\n` })
+  engine(on, '')
+  await start($)
+  await submit($, 'yes')
+  await drawUser($, 'r-unknown', 'yes')
+  expect(drawn[0]).toBe('yes')
+})
+
+test('a subagent\'s kept rows are not noted, so a main reply with the same text keeps its own time', async ($, on) => {
+  const { writes, drawn } = world(on)
+  await start($)
+  await reply($, 'a-1', 'Done.')
+  await $.session.append({
+    message: { type: 'assistant', role: 'assistant', content: [{ type: 'text', text: 'Done.' }] },
+    door: 'response',
+    origin: { kind: 'model', model: 'claude-test' },
+    uuid: 's-1',
+    agentId: 'agent-1',
+  } as never)
+  expect(Object.keys(parseFile(writes.at(-1)!.text))).toEqual(['a-1'])
+  await drawReply($, 'r-unknown', 'Done.')
+  expect(drawn[0]).toMatch(STAMP)
 })

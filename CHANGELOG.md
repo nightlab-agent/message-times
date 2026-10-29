@@ -4,6 +4,20 @@ The form is Keep a Changelog; versions follow SemVer.
 
 ## [Unreleased]
 
+## 0.3.1 - 2026-10-29 - two rows with one text never share a time
+
+### Fixed
+- A row drawn under an id the mod had not noted took the time of the notes with its text when they sat within a
+  minute of each other, even when they were two rows kept under two ids ("yes" typed twice, 30 seconds apart). Now
+  the notes of one row must sit within 10 seconds of its first (a limit chosen by hand, not measured) and come
+  one from each source at most: one row id (a reply's blocks share their row's), one submit note, one reply
+  note; anything else is a second row, and the drawn row gets no time rather than the wrong one. Found by
+  karanb192 reviewing awesome-claude-code-mods PR #427; the test fails on 0.3.0.
+- A subagent's kept rows are no longer noted: one with the same text as a main row could have stood for it.
+
+### Changed
+- `tsconfig.json`, which Claude Code lays beside a loaded mod with its type declarations, is ignored by git (seen beside file-trail on 2026-10-29 after a session loaded it). `tests/typecheck.sh` tells tsc to ignore such an untracked file: tsc 7.0.2 stopped on it with error TS5112.
+
 ## 0.3.0 - 2026-10-29 - the notes folder is kept out of git
 
 ### Added
@@ -23,16 +37,16 @@ The form is Keep a Changelog; versions follow SemVer.
 ### Added
 - README: a Build your own section names the free template (mod-ready) and the paid Mod Field Kit.
 
-## 0.2.1 - 2026-10-28 - the gate type-checks
+## 0.2.1 - 2026-10-28 - the release script type-checks
 
 ### Changed
 - README: the one-line install now sits under the README's first paragraph, with a link to the full Install section.
 - package.json drops `publishConfig` (the publish service refuses it; the package is already public on npm, so nothing changes for installs).
 - The checklist fails (was: warns) on a `publishConfig` in package.json, and fails on a package.json repository that is not the plugin's own GitHub repo.
 - `tests/typecheck.sh` fails when `TSC` is neither an executable nor a command on PATH (before, it fell back to PATH), or when there is no hooks module file to check (before, it passed).
-- The release gate type-checks the hooks module, its tests and the state contract with `tsc --noEmit` against the
+- The release script type-checks the hooks module, its tests and the state contract with `tsc --noEmit` against the
   engine's own declarations (`tests/typecheck.sh`, the compiler options the declarations' header gives a hooks module).
-  No `tsc` or no declarations fails the gate; it never skips.
+  No `tsc` or no declarations fails the release script; it never skips.
 
 ### Fixed
 - The module named a type `Engine` that `claude-code` does not export, so the functions using it went unchecked; it now names `EngineInterface`. No behaviour change.
@@ -66,7 +80,7 @@ The form is Keep a Changelog; versions follow SemVer.
 
 ### Added
 - `package.json`: the plugin is published to npm as `@nightlab-agent/message-times` (plugin files only, no scripts), so a marketplace can install it from an npm source.
-- The release gate's version check reads `package.json` too (five files).
+- The release script's version check reads `package.json` too (five files).
 
 ## 0.1.2 - 2026-10-28
 
@@ -85,4 +99,4 @@ The form is Keep a Changelog; versions follow SemVer.
 ### Added
 - A `session.append` hook on prompt and reply rows: the row's id, the time and the first 160 characters of its text, noted in the session's state and in `$MESSAGE_TIMES_DIR/stamps.tsv`, else `$HOME/.message-times/stamps.tsv` (newest 5000).
 - `ui.render` hooks on `UserMessage` (your own prompts, collapsed view) and `AssistantMessage` (the block opening a reply): the time in front of the text, from the note with the row's id, else the one note with its text. Render hooks only read.
-- 8 tests under the engine's test kit; release gate `tests/release.sh` (validate, test, version string in four files). A mutation dropping the duplicate-text check fails 1; one dropping the expanded check fails 1.
+- 8 tests under the engine's test kit; release script `tests/release.sh` (validate, test, version string in four files). A mutation dropping the duplicate-text check fails 1; one dropping the expanded check fails 1.
