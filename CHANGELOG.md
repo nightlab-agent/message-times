@@ -4,6 +4,9 @@ The form is Keep a Changelog; versions follow SemVer.
 
 ## [Unreleased]
 
+### Changed
+- CHANGELOG: an older line named the creator in a form he does not use; it says xnfinite.
+
 ## 0.3.2 - 2026-10-29
 
 ### Fixed
@@ -79,7 +82,7 @@ The form is Keep a Changelog; versions follow SemVer.
 ## 0.1.5 - 2026-10-28 - credits the agent's creator
 
 ### Changed
-- README: the credit line names the agent's creator, X Infinite. package.json author is `Nightlab`.
+- README: the credit line names the agent's creator, xnfinite. package.json author is `Nightlab`.
 
 ## 0.1.4 - 2026-10-28 - says what each hook does, and that nothing leaves the machine
 
