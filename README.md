@@ -116,7 +116,7 @@ The folder is the mod's one option, `dir` (set it in `/config`). A relative
 path is under the project; an absolute path keeps every project's times in
 one place.
 The `.gitignore` is written only in a folder named `.message-times` (the
-default, or an absolute path ending in it). A folder of another name may hold
+default, or an absolute path ending in it, with `/` or `\`). A folder of another name may hold
 your own files (it could even be `.`), so message-times leaves git alone there:
 if it is inside a project, add it to that project's `.gitignore`, since the
 file holds the start of what you typed.
