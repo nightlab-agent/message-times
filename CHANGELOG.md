@@ -4,11 +4,14 @@ The form is Keep a Changelog; versions follow SemVer.
 
 ## [Unreleased]
 
+## 0.3.2 - 2026-10-29
+
 ### Fixed
 - Two sessions in one project no longer erase each other's times: before each write the file on disk is read
   and merged, newest 5000 kept. A test covers a note another session wrote after this one started.
 
 ### Changed
+- README: the picture's address is the full GitHub one, so the npm page shows it too.
 - README: a picture from a Claude Code 2.1.312 terminal and the notice it showed; scopes; how to uninstall;
   the other timestamps plugin named. The repo's notes say what they mean in plain words.
 

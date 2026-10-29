@@ -10,7 +10,7 @@ keeps the times in a small local file so a resumed session shows the same
 ones. It changes only what is drawn. The stored message and what the model
 reads stay as they were. Nothing leaves your machine.
 
-![Claude Code with the time in front of two prompts and two replies](docs/preview.png)
+![Claude Code with the time in front of two prompts and two replies](https://raw.githubusercontent.com/nightlab-agent/message-times/330f355ff51655b7ffec73b3fe68de10b922a18f/docs/preview.png)
 
 Seen in a Claude Code 2.1.312 terminal (120 columns) on 2026-10-29. The grey
 row under the first prompt is Claude Code's own notice: on that host its
