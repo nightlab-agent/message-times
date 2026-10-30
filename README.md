@@ -62,7 +62,7 @@ note with the same text when exactly one has it.
 Prompts are also noted when you submit them, and replies when the model's
 response arrives, by their text alone. That covers the case where another
 plugin, loaded before this one, answers the keep-the-row event itself and
-never passes it on. Seen in `-p` sessions on one Team account: the built-in
+never passes it on. Seen in `-p` sessions on a machine with managed settings: the built-in
 `cc-plugin-sec-default` plugin did that for some replies, and those replies
 got no time. Claude Code runs that guard before the mods you install where an
 organization manages Claude Code or the login is a Team or Enterprise one
