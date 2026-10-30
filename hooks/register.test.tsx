@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { TestBody } from 'claude-code/testing'
 
-import { byText, fileText, KEEP, keyOf, parseFile, stampFor, timeOf, trim } from './register'
+import { byText, fileText, FILES, KEEP, keyOf, parseFile, stampFor, timeOf, trim } from './register'
 
 // Each test stands for the engine beneath the plugin: it answers
 // `session.start`, `$.fs.read` and `$.fs.write`, keeps the rows
@@ -17,6 +17,8 @@ const world = (on: On, opts: { file?: string; readFails?: boolean; writeFails?: 
   const writes: { path: string; text: string }[] = []
   const drawn: string[] = []
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.id', () => ({ value: 's-1' }))
+  on('fs.list', () => ({ value: opts.file === undefined ? [] : [{ name: 'stamps.tsv', kind: 'file', size: 1, mtimeMs: 1, isLink: false }] }))
   on('fs.read', () => {
     if (opts.readFails || opts.file === undefined) throw Object.assign(new Error('no such file'), { code: 'ENOENT' })
     return { value: opts.file }
@@ -85,7 +87,7 @@ test('a prompt and a reply the session kept are drawn with the time, by id or by
   expect(drawn[0]).toEndWith('] check worker status')
   expect(drawn[1]).toMatch(STAMP)
   expect(drawn[1]).toEndWith('] Both workers are active.')
-  expect(writes.at(-1)!.path.endsWith('/.message-times/stamps.tsv')).toBe(true)
+  expect(writes.at(-1)!.path.endsWith('/.message-times/stamps-s-1.tsv')).toBe(true)
   expect(Object.keys(parseFile(writes.at(-1)!.text))).toEqual(['u-1', 'a-1'])
 })
 
@@ -172,7 +174,7 @@ test('the dir option moves the file', { options: { dir: '/var/notes' } }, async 
   const { writes } = world(on)
   await start($)
   await prompt($, 'u-1', 'a')
-  expect(writes.map(w => w.path)).toEqual(['/var/notes/stamps.tsv'])
+  expect(writes.map(w => w.path)).toEqual(['/var/notes/stamps-s-1.tsv'])
 })
 
 test('with dir set to the project itself, the project\'s own .gitignore is left alone', { options: { dir: '.' } }, async ($, on) => {
@@ -180,7 +182,7 @@ test('with dir set to the project itself, the project\'s own .gitignore is left 
   await start($)
   await prompt($, 'u-1', 'a')
   expect(writes.filter(w => w.path.endsWith('.gitignore')).length).toBe(0)
-  expect(writes.filter(w => w.path.endsWith('stamps.tsv')).length).toBe(1)
+  expect(writes.filter(w => w.path.endsWith('stamps-s-1.tsv')).length).toBe(1)
 })
 
 test('comparison: an absolute folder named .message-times gets its .gitignore', { options: { dir: '/var/notes/.message-times/' } }, async ($, on) => {
@@ -213,7 +215,7 @@ test('before its first write the mod writes <dir>/.gitignore holding one line, *
   expect(writes[0]!.path.endsWith('/.message-times/.gitignore')).toBe(true)
   expect(writes[0]!.text).toBe('*\n')
   expect(writes.filter(w => w.path.endsWith('/.gitignore')).length).toBe(1)
-  expect(writes.filter(w => w.path.endsWith('/stamps.tsv')).length).toBe(2)
+  expect(writes.filter(w => w.path.endsWith('/stamps-s-1.tsv')).length).toBe(2)
 })
 
 test('"yes" kept twice under two ids 30 seconds apart: a row not under either id gets no time; each own row keeps its own', async ($, on) => {
@@ -296,22 +298,117 @@ test('a subagent\'s kept rows are not noted, so a main reply with the same text 
   expect(drawn[0]).toMatch(STAMP)
 })
 
-test('two sessions in one project: a note another session wrote after this one started stays in the file', async ($, on) => {
-  const opts: { file?: string } = { file: 'u-1\t2026-10-29T10:00:00.000Z\tuser:first\n' }
-  const { writes } = world(on, opts)
+// A folder held in memory, shared by every session the test runs in turn.
+const disk = (on: On, files: Map<string, string>, session: { id: string }) => {
+  // a file already there counts as written in the order the map holds it, oldest first
+  let tick = 0
+  const mtimes = new Map<string, number>([...files.keys()].map(f => [f, ++tick]))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.root', () => ({ value: '/work' }))
+  on('session.end', (_, e) => ({ sessionId: e.sessionId }))
+  on('session.id', () => ({ value: session.id }))
+  on('fs.list', (_, e) => {
+    const dir = String((e as { path?: unknown }).path ?? '')
+    const names = [...files.keys()].filter(f => f.startsWith(`${dir}/`)).map(f => f.slice(dir.length + 1)).filter(n => !n.includes('/'))
+    return { value: names.map(name => ({ name, kind: 'file', size: 1, mtimeMs: mtimes.get(`${dir}/${name}`) ?? 0, isLink: false })) }
+  })
+  on('fs.read', (_, e) => {
+    const text = files.get(e.path)
+    if (text === undefined) throw Object.assign(new Error('no such file'), { code: 'ENOENT' })
+    return { value: text }
+  })
+  on('fs.exists', (_, e) => ({ value: files.has(e.path) }))
+  on('fs.write', (_, e) => {
+    files.set(e.path, e.text)
+    mtimes.set(e.path, ++tick)
+    return { value: undefined }
+  })
+  const drawn: string[] = []
+  on('ui.render', ($, e) => {
+    const text = String((e.props as { text?: unknown }).text)
+    drawn.push(text)
+    const { Text } = $.ui.resolve(e)
+    return <Text>{text}</Text>
+  })
+  return drawn
+}
+
+test('two sessions in one project, B writes between A\'s read and write: neither loses a note, and the next start has both', async ($, on) => {
+  const files = new Map<string, string>()
+  const session = { id: 's-a' }
+  const drawn = disk(on, files, session)
   await start($)
-  opts.file += 'u-2\t2026-10-29T10:01:00.000Z\tuser:from the other session\n'
-  await prompt($, 'u-3', 'third')
-  const last = writes.filter(w => w.path.endsWith('stamps.tsv')).at(-1)!.text
-  expect(last).toContain('u-1\t')
-  expect(last).toContain('u-2\t')
-  expect(last).toContain('u-3\t')
+  await prompt($, 'u-a1', 'from A')
+  // session B writes while A is between notes, the moment that lost notes before
+  files.set('/work/.message-times/stamps-s-b.tsv', 'u-b1\t2026-10-29T10:01:00.000Z\tuser:from B\n')
+  await prompt($, 'u-a2', 'from A again')
+  expect(Object.keys(parseFile(files.get('/work/.message-times/stamps-s-b.tsv')!))).toEqual(['u-b1'])
+  expect(Object.keys(parseFile(files.get('/work/.message-times/stamps-s-a.tsv')!))).toEqual(['u-a1', 'u-a2'])
+  // a third session starts and draws all three with their times
+  session.id = 's-c'
+  await start($)
+  await drawUser($, 'u-b1', 'from B')
+  await drawUser($, 'u-a2', 'from A again')
+  expect(drawn[0]).toBe(`[${timeOf('2026-10-29T10:01:00.000Z', new Date())}] from B`)
+  expect(drawn[1]).toMatch(STAMP)
 })
 
-test('a stamps.tsv that is there but whose read is refused (EBUSY) is left alone, not rewritten with this session\'s notes', async ($, on) => {
+test('comparison: a stamps.tsv left by an earlier version is read at start and never written again', async ($, on) => {
+  const files = new Map<string, string>([['/work/.message-times/stamps.tsv', 'u-9\t2026-10-27T13:15:32.000Z\tuser:deploy the fix\n']])
+  const drawn = disk(on, files, { id: 's-1' })
+  await start($)
+  await prompt($, 'u-1', 'new')
+  await drawUser($, 'u-9', 'deploy the fix')
+  expect(drawn[0]).toBe(`[${timeOf('2026-10-27T13:15:32.000Z', new Date())}] deploy the fix`)
+  expect(files.get('/work/.message-times/stamps.tsv')).toBe('u-9\t2026-10-27T13:15:32.000Z\tuser:deploy the fix\n')
+  expect(files.has('/work/.message-times/stamps-s-1.tsv')).toBe(true)
+})
+
+test('at start only the FILES most recently written notes files are read', async ($, on) => {
+  // session 0's file is the oldest of FILES + 1
+  const files = new Map<string, string>(
+    Array.from({ length: FILES + 1 }, (_, i) => [`/work/.message-times/stamps-s${i}.tsv`, `u-${i}\t2026-10-29T10:00:00.000Z\tuser:row ${i}\n`] as [string, string]),
+  )
+  const drawn = disk(on, files, { id: 's-new' })
+  await start($)
+  await drawUser($, 'u-0', 'row 0')
+  await drawUser($, 'u-1', 'row 1')
+  expect(drawn[0]).toBe('row 0')
+  expect(drawn[1]).toBe(`[${timeOf('2026-10-29T10:00:00.000Z', new Date())}] row 1`)
+})
+
+test('/clear: a row of the new conversation saying what an old one said is drawn without the old time', async ($, on) => {
+  const files = new Map<string, string>()
+  const session = { id: 's-a' }
+  const drawn = disk(on, files, session)
+  await start($)
+  await prompt($, 'u-old', 'yes')
+  await $.session.end({ reason: 'clear', sessionId: 's-a', resume: {} as never })
+  session.id = 's-b'
+  await prompt($, 'u-new', 'something new')
+  await drawUser($, 'u-other', 'yes')
+  await drawUser($, 'u-new', 'something new')
+  expect(drawn[0]).toBe('yes')
+  expect(drawn[1]).toMatch(STAMP)
+  expect(Object.keys(parseFile(files.get('/work/.message-times/stamps-s-b.tsv')!))).toEqual(['u-new'])
+  expect(Object.keys(parseFile(files.get('/work/.message-times/stamps-s-a.tsv')!))).toEqual(['u-old'])
+})
+
+test('comparison: a session that ends any other way keeps its notes', async ($, on) => {
+  const drawn = disk(on, new Map(), { id: 's-a' })
+  await start($)
+  await prompt($, 'u-old', 'yes')
+  await $.session.end({ reason: 'prompt_input_exit', sessionId: 's-a', resume: {} as never })
+  await drawUser($, 'u-other', 'yes')
+  expect(drawn[0]).toMatch(STAMP)
+})
+
+test('a notes file that is there but whose read is refused (EBUSY) is left alone, not rewritten with this session\'s notes', async ($, on) => {
   const writes: { path: string; text: string }[] = []
   let refuse = false
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.id', () => ({ value: 's-1' }))
+  on('fs.list', () => ({ value: [{ name: 'stamps-s-1.tsv', kind: 'file', size: 1, mtimeMs: 1, isLink: false }] }))
   on('fs.read', () => {
     if (refuse) throw Object.assign(new Error('resource busy or locked'), { code: 'EBUSY' })
     return { value: 'u-1\t2026-10-29T10:00:00.000Z\tuser:first\n' }
@@ -324,12 +421,14 @@ test('a stamps.tsv that is there but whose read is refused (EBUSY) is left alone
   await start($)
   refuse = true
   await prompt($, 'u-3', 'today')
-  expect(writes.filter(w => w.path.endsWith('stamps.tsv')).length).toBe(0)
+  expect(writes.filter(w => w.path.endsWith('stamps-s-1.tsv')).length).toBe(0)
 })
 
 test('comparison: with no file yet, the first note writes the file', async ($, on) => {
   const writes: { path: string; text: string }[] = []
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.id', () => ({ value: 's-1' }))
+  on('fs.list', () => ({ value: [] }))
   on('fs.read', () => {
     throw Object.assign(new Error('no such file'), { code: 'ENOENT' })
   })
@@ -340,13 +439,15 @@ test('comparison: with no file yet, the first note writes the file', async ($, o
   })
   await start($)
   await prompt($, 'u-3', 'today')
-  expect(writes.filter(w => w.path.endsWith('stamps.tsv')).at(-1)!.text).toContain('u-3\t')
+  expect(writes.filter(w => w.path.endsWith('stamps-s-1.tsv')).at(-1)!.text).toContain('u-3\t')
 })
 
 test('one session, two notes at once, the first one\'s write answered late: the file still ends with both', async ($, on) => {
   const writes: { path: string; text: string }[] = []
   let first = true
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.id', () => ({ value: 's-1' }))
+  on('fs.list', () => ({ value: [] }))
   on('fs.read', () => {
     throw Object.assign(new Error('no such file'), { code: 'ENOENT' })
   })
@@ -360,7 +461,7 @@ test('one session, two notes at once, the first one\'s write answered late: the 
   })
   await start($)
   await Promise.all([prompt($, 'u-1', 'first'), prompt($, 'u-2', 'second')])
-  const last = writes.filter(w => w.path.endsWith('stamps.tsv')).at(-1)!.text
+  const last = writes.filter(w => w.path.endsWith('stamps-s-1.tsv')).at(-1)!.text
   expect(last).toContain('u-1\t')
   expect(last).toContain('u-2\t')
 })

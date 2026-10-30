@@ -4,6 +4,16 @@ The form is Keep a Changelog; versions follow SemVer.
 
 ## [Unreleased]
 
+## 0.3.5 - 2026-10-30
+
+### Fixed
+- Two sessions open in one project could lose notes: when one wrote `stamps.tsv` between the other's read
+  and write, the later write dropped the first one's new notes. Each session now writes a file of its own,
+  `stamps-<session id>.tsv`, and a session reads the 50 most recently written ones at start. A
+  `stamps.tsv` from an earlier version is still read while it is among those 50, and is no longer written.
+- After a `/clear`, a new row saying what an old one said ("yes") could be drawn with the old row's time:
+  the notes of the cleared conversation stayed in memory. A `/clear` now drops them.
+
 ## 0.3.4 - 2026-10-30
 
 ### Fixed

@@ -9,7 +9,7 @@ import type { Stamp, Stamps } from '../types'
 //
 // How a row gets its time: when the session keeps a prompt or a reply row
 // (`session.append`), its id, the time and the start of its text are noted, in
-// the session's state and in one local file, so a resumed session has them.
+// the session's state and in a file of the session's own, so a resumed session has them.
 // When the conversation draws a message row it reads them and never writes (a
 // render hook may not): the row whose id was noted shows that time; otherwise
 // the one noted row of that kind with the same text, when exactly one has it.
@@ -72,6 +72,19 @@ export const parseFile = (text: string): Stamps => {
   return out
 }
 
+/** Notes ordered by their time, oldest first. */
+const byTime = (all: Stamps): Stamps =>
+  Object.fromEntries(Object.entries(all).sort(([, a], [, b]) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0)))
+
+/** How many notes files are read at start, the most recently written first. */
+export const FILES = 50
+
+/** A session's own file: `stamps-<session id>.tsv`. */
+export const fileOf = (sessionId: string) => `stamps-${sessionId.replace(/[^A-Za-z0-9_-]/g, '_')}.tsv`
+
+/** A notes file: a session's own, or the one `stamps.tsv` versions before 0.3.5 shared. */
+export const isNotes = (name: string) => name === 'stamps.tsv' || /^stamps-[A-Za-z0-9_-]+\.tsv$/.test(name)
+
 /** A note made by text alone (at `prompt.submit` or `turn.step`), not under the row's own id. */
 export const byText = (id: string) => id.startsWith('prompt:') || id.startsWith('step:')
 
@@ -130,9 +143,10 @@ const folderOf = async ($: EngineInterface, options: Options, start?: string) =>
   return dir === '.' ? root : `${root}/${dir.replace(/^\.[\\/]/, '')}`
 }
 
-/** Whether the folder is the mod's own, the folder its .gitignore was last written in, and the write in
- * flight: notes are written one after another, so an earlier note's write never lands last. */
-type Done = { own: boolean; ignoredIn: string | null; last: Promise<void> }
+/** Whether the folder is the mod's own, the folder its .gitignore was last written in, the write in
+ * flight (notes are written one after another, so an earlier note's write never lands last), and the
+ * session's own file with the notes it holds. */
+type Done = { own: boolean; ignoredIn: string | null; last: Promise<void>; file: string | null; mine: Stamps }
 
 /** Adds notes to the session's and writes the file. Before the first write in a folder it writes
  * `<dir>/.gitignore` holding `*`, so git ignores the folder in every project with no step from the user:
@@ -144,23 +158,33 @@ function note($: EngineInterface, options: Options, notes: Stamps, done: Done) {
 }
 
 async function write($: EngineInterface, options: Options, notes: Stamps, done: Done) {
-  const all = await update($, stamps, xs => trim({ ...xs, ...notes }))
+  await update($, stamps, xs => trim({ ...xs, ...notes }))
   const folder = await folderOf($, options)
   if (done.own && done.ignoredIn !== folder) {
     await $.fs.write(`${folder}/.gitignore`, '*\n')
     done.ignoredIn = folder
   }
-  // Another session in this project may have written since this one read the file: keep its notes too.
-  let disk: Stamps = {}
-  try {
-    disk = parseFile(await $.fs.read(`${folder}/stamps.tsv`))
-  } catch (err) {
-    // a file that is there but could not be read is left alone: writing would erase its history
-    const code = (err as { code?: unknown } | null)?.code
-    if (code !== 'ENOENT' && (await $.fs.exists(`${folder}/stamps.tsv`).catch(() => false))) throw err
+  // Each session writes a file of its own, so a second session in this project never writes over this
+  // one's notes, nor this one over its: both are read at the next start.
+  const name = fileOf(await $.session.id())
+  const file = `${folder}/${name}`
+  if (done.file !== file) {
+    // a resumed session's file already holds its earlier notes: read once, then kept here
+    let mine: Stamps = {}
+    try {
+      mine = parseFile(await $.fs.read(file))
+    } catch (err) {
+      // a file that is there but could not be read is left alone: writing would erase its history
+      const code = (err as { code?: unknown } | null)?.code
+      if (code !== 'ENOENT' && (await $.fs.exists(file).catch(() => false))) throw err
+    }
+    done.file = file
+    done.mine = mine
+    // a session resumed after 50 others has its own file outside those read at start
+    await update($, stamps, xs => trim(byTime({ ...mine, ...xs })))
   }
-  const merged = Object.entries({ ...disk, ...all }).sort(([, a], [, b]) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
-  await $.fs.write(`${folder}/stamps.tsv`, fileText(trim(Object.fromEntries(merged))))
+  done.mine = trim(byTime({ ...done.mine, ...notes }))
+  await $.fs.write(`${folder}/${name}`, fileText(done.mine))
 }
 
 export const register: Register = (on, options) => {
@@ -168,15 +192,46 @@ export const register: Register = (on, options) => {
   // Only a folder named .message-times is the mod's own; any other may hold the user's files (even be the
   // project itself, `.`), so no .gitignore is written there.
   const own = dirOf(options).replace(/[\\/]+$/, '').split(/[\\/]/).at(-1) === '.message-times'
-  const done: Done = { own, ignoredIn: null, last: Promise.resolve() }
+  const done: Done = { own, ignoredIn: null, last: Promise.resolve(), file: null, mine: {} }
   on('session.start', async ($, e, next) => {
     try {
-      const kept = parseFile(await $.fs.read(`${await folderOf($, options, e.cwd)}/stamps.tsv`))
-      await update($, stamps, xs => trim({ ...kept, ...xs }))
+      const folder = await folderOf($, options, e.cwd)
+      const files = (await $.fs.list(folder))
+        .filter(f => f.kind === 'file' && isNotes(f.name))
+        .sort((a, b) => b.mtimeMs - a.mtimeMs)
+        .slice(0, FILES)
+        .reverse()
+      let kept: Stamps = {}
+      for (const f of files) {
+        try {
+          kept = { ...kept, ...parseFile(await $.fs.read(`${folder}/${f.name}`)) }
+        } catch {
+          // a file that cannot be read adds nothing; the others still count
+        }
+      }
+      await update($, stamps, xs => trim(byTime({ ...kept, ...xs })))
     } catch {
-      // no file yet, or none readable: the notes start empty
+      // no folder yet, or none readable: the notes start empty
     }
     return next(e)
+  })
+
+  // A /clear ends the conversation but not the process, and no session.start follows (the new session's
+  // id comes with its first note): the old rows are gone from the screen, so their notes go too, or a
+  // new row saying the same thing ("yes") could be drawn with an old one's time.
+  on('session.end', async ($, e, next) => {
+    const r = await next(e)
+    if (e.reason === 'clear') {
+      try {
+        await done.last.catch(() => {})
+        await update($, stamps, () => ({}))
+        done.file = null
+        done.mine = {}
+      } catch {
+        // the notes stay; a row drawn later may still find an old note
+      }
+    }
+    return r
   })
 
   // A prompt or reply row is being kept: note its id, time and text.

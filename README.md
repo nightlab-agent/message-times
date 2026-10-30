@@ -92,14 +92,18 @@ blocks gets its time on the first block only.
 
 ## What it writes
 
-One folder, `.message-times` under the project the session runs in, holding
-two files:
+One folder, `.message-times` under the project the session runs in, holding:
 
 - `.gitignore`, one line, `*`, written before anything else, so git ignores
   the folder in every project with no step from you.
-- `stamps.tsv`, one line per noted row, the newest 5000 across all sessions:
-  the row id, the time, and the first 160 characters of what you typed or
-  what the model answered.
+- `stamps-<session id>.tsv`, one file per session, one line per noted row
+  (the newest 5000): the row id, the time, and the first 160 characters of
+  what you typed or what the model answered. Each session writes only its
+  own file, so two sessions open in one project never write over each
+  other's notes (one session resumed in two windows at once still shares
+  its file). At start a session reads the 50 most recently written notes
+  files; a `stamps.tsv` left by version 0.3.4 or earlier counts as one of
+  them and is never written again.
 
 ```
 4b0e...-9a2c	2026-10-28T13:15:32.204Z	user:check worker status
@@ -107,10 +111,10 @@ two files:
 ```
 
 The third column is conversation text. The `.gitignore` keeps it out of your
-commits; the file still sits on disk in plain text, so anyone with your
-project folder can read it. To forget the times, end the session and delete
-the folder: a running session keeps the notes in memory and writes the file
-again on the next prompt. Nothing reads the file but this mod, at the start of a session, and you.
+commits; the files still sit on disk in plain text, so anyone with your
+project folder can read them. To forget the times, end the session and delete
+the folder: a running session keeps the notes in memory and writes its file
+again on the next prompt. Nothing reads the files but this mod, at the start of a session and at its first note, and you.
 
 The folder is the mod's one option, `dir` (set it in `/config`). A relative
 path is under the project; an absolute path keeps every project's times in
@@ -119,7 +123,7 @@ The `.gitignore` is written only in a folder named `.message-times` (the
 default, or an absolute path ending in it, with `/` or `\`). A folder of another name may hold
 your own files (it could even be `.`), so message-times leaves git alone there:
 if it is inside a project, add it to that project's `.gitignore`, since the
-file holds the start of what you typed.
+files hold the start of what you typed.
 
 ## What each hook does
 
@@ -128,7 +132,8 @@ the events Claude Code hands it. Everything stays on your machine.
 
 | Hook | What it does | What it changes |
 |---|---|---|
-| `session.start` | Reads its own notes file, so a resumed session keeps its times. | Nothing. |
+| `session.start` | Reads the 50 most recently written notes files in the folder (its own and other sessions'), so a resumed session keeps its times; a session older than those gets its own back at its first new note. | Nothing. |
+| `session.end` | On a `/clear`, forgets the cleared conversation's notes, so a new row saying the same thing ("yes") is never drawn with an old row's time. Any other end: nothing. | Nothing. |
 | `session.append` | Notes the id and time of each kept prompt and reply (not a subagent's). | Nothing: the row is kept as Claude Code kept it. |
 | `prompt.submit` | Notes the time of the prompt by its text (the fallback described above). | Nothing: the prompt goes on as typed. |
 | `turn.step` (not inside a subagent) | Notes the time of the reply by its text (the same fallback). | Nothing: the request and the response pass through untouched. |
@@ -140,7 +145,7 @@ It does not time tool calls, notifications or messages from other senders.
 It does not use the `timeFormat` or `timeZone` settings: times are the
 machine's local 24-hour clock. It does not change what is stored or sent.
 
-If the file cannot be read or written, the times show for this run only and
+If a file cannot be read or written, the times show for this run only and
 a resume has none. A failure inside the mod draws the row as Claude Code drew
 it and never changes a kept row.
 
