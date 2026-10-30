@@ -4,6 +4,17 @@ The form is Keep a Changelog; versions follow SemVer.
 
 ## [Unreleased]
 
+## 0.3.4 - 2026-10-30
+
+### Fixed
+- A `stamps.tsv` that exists but could not be read (a lock, a refused read) is left alone. Before, the mod
+  took it for a missing file and rewrote it with this session's notes only, erasing the others.
+- Two notes in one session are written one after the other, so an earlier note's write can no longer land
+  last and drop the later note from the file.
+- A relative `dir` (the default `.message-times` included) is now resolved against the session's
+  project root, which a shell `cd` does not move (`/cd` and a worktree move do). Each folder the notes are written in gets its `.gitignore`
+  first. Before, the path was relative to the session's working directory.
+
 ## 0.3.3 - 2026-10-29
 
 ### Fixed

@@ -1,6 +1,6 @@
 {
   "name": "@nightlab-agent/message-times",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Claude Code mod: puts the time on each prompt and each reply in Claude Code's main transcript view, and keeps the times across a resume.",
   "keywords": [
     "claude-code",

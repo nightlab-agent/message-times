@@ -118,34 +118,60 @@ type Options = Parameters<Register>[1]
 /** The folder the notes are kept in: the `dir` option, else `.message-times` under the project. */
 const dirOf = (options: Options) => String(options.dir || '.message-times')
 
-/** Adds notes to the session's and writes the file. Before the first write of a session it writes
+/** The folder as an absolute path: a relative one is under the session's project root, which a shell `cd`
+ * does not move (a relative path given to the engine would follow the shell into a subfolder). */
+const folderOf = async ($: EngineInterface, options: Options, start?: string) => {
+  const dir = dirOf(options).replace(/[\\/]+$/, '')
+  if (/^([\\/]|[A-Za-z]:)/.test(dir)) return dir
+  // at session.start, before the engine has the session, its folder comes with the event; a host with no
+  // project root keeps the folder relative, as before
+  const root = (start ?? (await $.session.root().catch(() => ''))).replace(/[\\/]+$/, '')
+  if (!root) return dir
+  return dir === '.' ? root : `${root}/${dir.replace(/^\.[\\/]/, '')}`
+}
+
+/** Whether the folder is the mod's own, the folder its .gitignore was last written in, and the write in
+ * flight: notes are written one after another, so an earlier note's write never lands last. */
+type Done = { own: boolean; ignoredIn: string | null; last: Promise<void> }
+
+/** Adds notes to the session's and writes the file. Before the first write in a folder it writes
  * `<dir>/.gitignore` holding `*`, so git ignores the folder in every project with no step from the user:
  * the file holds the start of what was typed and answered, and must never ride along in a commit. */
-async function note($: EngineInterface, options: Options, notes: Stamps, done: { ignore: boolean }) {
+function note($: EngineInterface, options: Options, notes: Stamps, done: Done) {
+  const run = done.last.catch(() => {}).then(() => write($, options, notes, done))
+  done.last = run
+  return run
+}
+
+async function write($: EngineInterface, options: Options, notes: Stamps, done: Done) {
   const all = await update($, stamps, xs => trim({ ...xs, ...notes }))
-  if (!done.ignore) {
-    await $.fs.write(`${dirOf(options)}/.gitignore`, '*\n')
-    done.ignore = true
+  const folder = await folderOf($, options)
+  if (done.own && done.ignoredIn !== folder) {
+    await $.fs.write(`${folder}/.gitignore`, '*\n')
+    done.ignoredIn = folder
   }
   // Another session in this project may have written since this one read the file: keep its notes too.
   let disk: Stamps = {}
   try {
-    disk = parseFile(await $.fs.read(`${dirOf(options)}/stamps.tsv`))
-  } catch {
-    // no file yet, or none readable: this session's notes alone
+    disk = parseFile(await $.fs.read(`${folder}/stamps.tsv`))
+  } catch (err) {
+    // a file that is there but could not be read is left alone: writing would erase its history
+    const code = (err as { code?: unknown } | null)?.code
+    if (code !== 'ENOENT' && (await $.fs.exists(`${folder}/stamps.tsv`).catch(() => false))) throw err
   }
   const merged = Object.entries({ ...disk, ...all }).sort(([, a], [, b]) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
-  await $.fs.write(`${dirOf(options)}/stamps.tsv`, fileText(trim(Object.fromEntries(merged))))
+  await $.fs.write(`${folder}/stamps.tsv`, fileText(trim(Object.fromEntries(merged))))
 }
 
 export const register: Register = (on, options) => {
   // whether this session has written the folder's .gitignore yet
   // Only a folder named .message-times is the mod's own; any other may hold the user's files (even be the
   // project itself, `.`), so no .gitignore is written there.
-  const done = { ignore: dirOf(options).replace(/[\\/]+$/, '').split(/[\\/]/).at(-1) !== '.message-times' }
+  const own = dirOf(options).replace(/[\\/]+$/, '').split(/[\\/]/).at(-1) === '.message-times'
+  const done: Done = { own, ignoredIn: null, last: Promise.resolve() }
   on('session.start', async ($, e, next) => {
     try {
-      const kept = parseFile(await $.fs.read(`${dirOf(options)}/stamps.tsv`))
+      const kept = parseFile(await $.fs.read(`${await folderOf($, options, e.cwd)}/stamps.tsv`))
       await update($, stamps, xs => trim({ ...kept, ...xs }))
     } catch {
       // no file yet, or none readable: the notes start empty

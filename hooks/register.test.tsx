@@ -9,6 +9,8 @@ import { byText, fileText, KEEP, keyOf, parseFile, stampFor, timeOf, trim } from
 // plugin passed down. Nothing touches the real file system.
 
 type On = Parameters<TestBody>[1]
+// the test runtime has timers; the declarations the mod builds against do not name them
+declare const setTimeout: (f: () => void, ms: number) => unknown
 type $T = Parameters<TestBody>[0]
 
 const world = (on: On, opts: { file?: string; readFails?: boolean; writeFails?: boolean} = {}) => {
@@ -304,4 +306,61 @@ test('two sessions in one project: a note another session wrote after this one s
   expect(last).toContain('u-1\t')
   expect(last).toContain('u-2\t')
   expect(last).toContain('u-3\t')
+})
+
+test('a stamps.tsv that is there but whose read is refused (EBUSY) is left alone, not rewritten with this session\'s notes', async ($, on) => {
+  const writes: { path: string; text: string }[] = []
+  let refuse = false
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('fs.read', () => {
+    if (refuse) throw Object.assign(new Error('resource busy or locked'), { code: 'EBUSY' })
+    return { value: 'u-1\t2026-10-29T10:00:00.000Z\tuser:first\n' }
+  })
+  on('fs.exists', () => ({ value: true }))
+  on('fs.write', (_, e) => {
+    writes.push({ path: e.path, text: e.text })
+    return { value: undefined }
+  })
+  await start($)
+  refuse = true
+  await prompt($, 'u-3', 'today')
+  expect(writes.filter(w => w.path.endsWith('stamps.tsv')).length).toBe(0)
+})
+
+test('comparison: with no file yet, the first note writes the file', async ($, on) => {
+  const writes: { path: string; text: string }[] = []
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('fs.read', () => {
+    throw Object.assign(new Error('no such file'), { code: 'ENOENT' })
+  })
+  on('fs.exists', () => ({ value: false }))
+  on('fs.write', (_, e) => {
+    writes.push({ path: e.path, text: e.text })
+    return { value: undefined }
+  })
+  await start($)
+  await prompt($, 'u-3', 'today')
+  expect(writes.filter(w => w.path.endsWith('stamps.tsv')).at(-1)!.text).toContain('u-3\t')
+})
+
+test('one session, two notes at once, the first one\'s write answered late: the file still ends with both', async ($, on) => {
+  const writes: { path: string; text: string }[] = []
+  let first = true
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('fs.read', () => {
+    throw Object.assign(new Error('no such file'), { code: 'ENOENT' })
+  })
+  on('fs.write', async (_, e) => {
+    if (e.path.endsWith('stamps.tsv') && first) {
+      first = false
+      await new Promise<void>(r => setTimeout(() => r(), 50))
+    }
+    writes.push({ path: e.path, text: e.text })
+    return { value: undefined }
+  })
+  await start($)
+  await Promise.all([prompt($, 'u-1', 'first'), prompt($, 'u-2', 'second')])
+  const last = writes.filter(w => w.path.endsWith('stamps.tsv')).at(-1)!.text
+  expect(last).toContain('u-1\t')
+  expect(last).toContain('u-2\t')
 })
