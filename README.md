@@ -100,8 +100,8 @@ One folder, `.message-times` under the project the session runs in, holding:
   (the newest 5000): the row id, the time, and the first 160 characters of
   what you typed or what the model answered. Each session writes only its
   own file, so two sessions open in one project never write over each
-  other's notes (one session resumed in two windows at once still shares
-  its file). At start a session reads the 50 most recently written notes
+  other's notes. One session resumed in two windows at once shares one
+  file; each write reads it first and keeps the other window's notes. At start a session reads the 50 most recently written notes
   files; a `stamps.tsv` left by version 0.3.4 or earlier counts as one of
   them and is never written again.
 

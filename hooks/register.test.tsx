@@ -377,6 +377,16 @@ test('at start only the FILES most recently written notes files are read', async
   expect(drawn[1]).toBe(`[${timeOf('2026-10-29T10:00:00.000Z', new Date())}] row 1`)
 })
 
+test('one session resumed in two windows: the other window writes the shared file between this one\'s notes, and its note stays', async ($, on) => {
+  const files = new Map<string, string>()
+  disk(on, files, { id: 's-a' })
+  await start($)
+  await prompt($, 'u-1', 'here')
+  files.set('/work/.message-times/stamps-s-a.tsv', files.get('/work/.message-times/stamps-s-a.tsv')! + 'u-x\t2026-10-30T00:00:00.000Z\tuser:there\n')
+  await prompt($, 'u-2', 'here again')
+  expect(Object.keys(parseFile(files.get('/work/.message-times/stamps-s-a.tsv')!)).sort()).toEqual(['u-1', 'u-2', 'u-x'])
+})
+
 test('/clear: a row of the new conversation saying what an old one said is drawn without the old time', async ($, on) => {
   const files = new Map<string, string>()
   const session = { id: 's-a' }
@@ -452,7 +462,7 @@ test('one session, two notes at once, the first one\'s write answered late: the 
     throw Object.assign(new Error('no such file'), { code: 'ENOENT' })
   })
   on('fs.write', async (_, e) => {
-    if (e.path.endsWith('stamps.tsv') && first) {
+    if (e.path.endsWith('stamps-s-1.tsv') && first) {
       first = false
       await new Promise<void>(r => setTimeout(() => r(), 50))
     }

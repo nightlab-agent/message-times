@@ -168,22 +168,23 @@ async function write($: EngineInterface, options: Options, notes: Stamps, done: 
   // one's notes, nor this one over its: both are read at the next start.
   const name = fileOf(await $.session.id())
   const file = `${folder}/${name}`
-  if (done.file !== file) {
-    // a resumed session's file already holds its earlier notes: read once, then kept here
-    let mine: Stamps = {}
-    try {
-      mine = parseFile(await $.fs.read(file))
-    } catch (err) {
-      // a file that is there but could not be read is left alone: writing would erase its history
-      const code = (err as { code?: unknown } | null)?.code
-      if (code !== 'ENOENT' && (await $.fs.exists(file).catch(() => false))) throw err
-    }
-    done.file = file
-    done.mine = mine
-    // a session resumed after 50 others has its own file outside those read at start
-    await update($, stamps, xs => trim(byTime({ ...mine, ...xs })))
+  // Read on every write: one session resumed in two windows shares this file, and the other window's notes
+  // stay. This session's own are kept here as well, so a read that lags its last write loses none of them.
+  let disk: Stamps = {}
+  try {
+    disk = parseFile(await $.fs.read(file))
+  } catch (err) {
+    // a file that is there but could not be read is left alone: writing would erase its history
+    const code = (err as { code?: unknown } | null)?.code
+    if (code !== 'ENOENT' && (await $.fs.exists(file).catch(() => false))) throw err
   }
-  done.mine = trim(byTime({ ...done.mine, ...notes }))
+  if (done.file !== file) {
+    done.file = file
+    done.mine = {}
+    // a session resumed after 50 others has its own file outside those read at start
+    await update($, stamps, xs => trim(byTime({ ...disk, ...xs })))
+  }
+  done.mine = trim(byTime({ ...disk, ...done.mine, ...notes }))
   await $.fs.write(`${folder}/${name}`, fileText(done.mine))
 }
 
