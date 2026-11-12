@@ -134,3 +134,23 @@ test('comparison: a session that ends any other way keeps its notes', async ($, 
   await drawUser($, 'u-other', 'yes')
   expect(drawn[0]).toMatch(STAMP)
 })
+
+test('the folder deleted under a running session (git clean -fdX): the next note writes its .gitignore again', async ($, on) => {
+  const files = new Map<string, string>()
+  disk(on, files, { id: 's-a' })
+  await start($)
+  await prompt($, 'u-1', 'first')
+  for (const f of [...files.keys()]) files.delete(f)
+  await prompt($, 'u-2', 'second')
+  expect(files.get('/work/.message-times/.gitignore')).toBe('*\n')
+  expect([...files.keys()].filter(f => f.endsWith('.tsv')).length).toBe(1)
+})
+
+test('comparison: with the folder left as it is, the .gitignore is still there after the second note', async ($, on) => {
+  const files = new Map<string, string>()
+  disk(on, files, { id: 's-a' })
+  await start($)
+  await prompt($, 'u-1', 'first')
+  await prompt($, 'u-2', 'second')
+  expect(files.get('/work/.message-times/.gitignore')).toBe('*\n')
+})

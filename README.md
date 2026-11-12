@@ -103,8 +103,9 @@ blocks gets its time on the first block only.
 
 One folder, `.message-times` under the project the session runs in, holding:
 
-- `.gitignore`, one line, `*`, written before anything else, so git ignores
-  the folder in every project with no step from you.
+- `.gitignore`, one line, `*`, written before anything else (and again
+  before the next note if the folder was deleted, say by `git clean -fdX`),
+  so git ignores the folder in every project with no step from you.
 - `stamps-<session id>.tsv`, one file per session, one line per noted row
   (the newest 5000): the row id, the time, and the first 160 characters of
   what you typed or what the model answered. Each session writes only its

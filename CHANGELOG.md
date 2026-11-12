@@ -2,6 +2,13 @@
 
 The form is Keep a Changelog; versions follow SemVer.
 
+## 0.3.8 - 2026-11-12
+
+### Fixed
+- A `.message-times` folder deleted while a session ran (by `git clean -fdX`, or by hand) came back
+  on the next note without its `.gitignore`, so `git add -A` could commit the start of what was typed
+  and answered. The `.gitignore` is now checked before each note and written again when it is gone.
+
 ## 0.3.7 - 2026-11-03
 
 ### Docs

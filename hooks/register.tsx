@@ -149,7 +149,7 @@ const folderOf = async ($: EngineInterface, options: Options, start?: string) =>
 type Done = { own: boolean; ignoredIn: string | null; last: Promise<void>; file: string | null; mine: Stamps }
 
 /** Adds notes to the session's and writes the file. Before the first write in a folder it writes
- * `<dir>/.gitignore` holding `*`, so git ignores the folder in every project with no step from the user:
+ * `<dir>/.gitignore` holding `*` (and again whenever it is gone), so git ignores the folder in every project with no step from the user:
  * the file holds the start of what was typed and answered, and must never ride along in a commit. */
 function note($: EngineInterface, options: Options, notes: Stamps, done: Done) {
   const run = done.last.catch(() => {}).then(() => write($, options, notes, done))
@@ -160,7 +160,9 @@ function note($: EngineInterface, options: Options, notes: Stamps, done: Done) {
 async function write($: EngineInterface, options: Options, notes: Stamps, done: Done) {
   await update($, stamps, xs => trim({ ...xs, ...notes }))
   const folder = await folderOf($, options)
-  if (done.own && done.ignoredIn !== folder) {
+  // Written again whenever it is gone (git clean -fdX, or the user deleting the folder while a session
+  // runs); a check that fails counts as gone, since writing it again costs one write.
+  if (done.own && (done.ignoredIn !== folder || !(await $.fs.exists(`${folder}/.gitignore`).catch(() => false)))) {
     await $.fs.write(`${folder}/.gitignore`, '*\n')
     done.ignoredIn = folder
   }

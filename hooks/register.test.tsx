@@ -28,6 +28,8 @@ const world = (on: On, opts: { file?: string; readFails?: boolean; writeFails?: 
     writes.push({ path: e.path, text: e.text })
     return { value: undefined }
   })
+  // the notes file reads as missing here (fs.read above), so only a written .gitignore is there
+  on('fs.exists', (_, e) => ({ value: e.path.endsWith('/.gitignore') && writes.some(w => w.path === e.path) }))
   on('ui.render', ($, e) => {
     const text = String((e.props as { text?: unknown }).text)
     drawn.push(text)
